@@ -64,6 +64,17 @@ public partial class SettingsWindow : Window
         HideDelayInput.Text = workingCopy.HideDelayMilliseconds.ToString(CultureInfo.CurrentCulture);
         PopulateProcesses();
         PopulateMonitors();
+        try
+        {
+            StartWithWindowsCheckBox.IsChecked = SettingsStore.IsStartupEnabled();
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException or SecurityException)
+        {
+            StartWithWindowsCheckBox.IsEnabled = false;
+            SaveButton.IsEnabled = false;
+            ShowError($"Could not read the Windows startup preference. Settings cannot be saved until access is restored. {exception.Message}");
+        }
     }
 
     private void PopulateProcesses()
@@ -291,14 +302,14 @@ public partial class SettingsWindow : Window
 
         try
         {
-            SettingsStore.Save(workingCopy);
+            SettingsStore.Save(workingCopy, StartWithWindowsCheckBox.IsChecked == true);
         }
         catch (Exception exception) when (exception is IOException
             or UnauthorizedAccessException or SecurityException or ArgumentException
             or InvalidDataException or JsonException or NotSupportedException)
         {
             ShowError("Could not save settings. Check that %LOCALAPPDATA%\\EdgeSwitch is writable "
-                + $"and there is enough free disk space. {exception.Message} Your changes have not been applied.");
+                + $"and Windows startup preferences are accessible. {exception.Message}");
             return;
         }
 

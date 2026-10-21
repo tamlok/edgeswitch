@@ -41,8 +41,11 @@ The notification-area menu provides **Show toolbar**, **Settings**, and **Exit E
 - **Position:** choose from 12 centered or corner-aligned locations. **Top-left** is horizontal; **Left-top** is vertical.
 - **Display:** Automatic ignores seams between monitors. Select a specific display to allow its shared edges.
 - **Hide delay:** adjust how quickly the toolbar hides when idle.
+- **Startup:** enable **Start EdgeSwitch when I sign in** to launch automatically when you sign in to Windows. Off by default; applies only to your account and needs no administrator rights.
 
-Choose **Save** to apply your changes. Settings are stored in `%LOCALAPPDATA%\EdgeSwitch\settings.json`.
+Choose **Save** to apply your changes; **Cancel** leaves them unchanged. Toolbar settings are stored in `%LOCALAPPDATA%\EdgeSwitch\settings.json`. The startup preference uses the `EdgeSwitch` entry under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+
+If you move the portable executable, run it from the new location and choose **Save** with startup enabled to update its path. Disable startup and save before deleting the executable. Windows **Startup Apps** can independently block automatic launch; if disabled there, re-enable EdgeSwitch there as well.
 
 ## Good to know
 

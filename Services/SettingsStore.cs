@@ -4,11 +4,14 @@ using System.IO;
 using System.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Win32;
 
 namespace EdgeSwitch;
 
 internal static class SettingsStore
 {
+    private const string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupValueName = "EdgeSwitch";
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
@@ -42,7 +45,13 @@ internal static class SettingsStore
         }
     }
 
-    public static void Save(ToolbarSettings settings)
+    public static bool IsStartupEnabled()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupKeyPath);
+        return key?.GetValue(StartupValueName) is not null;
+    }
+
+    public static void Save(ToolbarSettings settings, bool startWithWindows)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ToolbarSettings normalized = NormalizeSettings(settings);
@@ -54,7 +63,51 @@ internal static class SettingsStore
         try
         {
             File.WriteAllText(temporaryPath, json);
-            File.Move(temporaryPath, path, overwrite: true);
+            string? command = startWithWindows ? GetStartupCommand() : null;
+            using RegistryKey? startupKey = Registry.CurrentUser.OpenSubKey(StartupKeyPath);
+            object? previousValue = startupKey?.GetValue(StartupValueName, null,
+                RegistryValueOptions.DoNotExpandEnvironmentNames);
+            RegistryValueKind previousKind = previousValue is null
+                ? RegistryValueKind.String : startupKey!.GetValueKind(StartupValueName);
+            bool startupChanged = !Equals(previousValue, command);
+            using RegistryKey? writableKey = startupChanged
+                ? Registry.CurrentUser.CreateSubKey(StartupKeyPath) : null;
+            if (startupChanged)
+            {
+                if (command is null)
+                    writableKey!.DeleteValue(StartupValueName, throwOnMissingValue: false);
+                else
+                    writableKey!.SetValue(StartupValueName, command, RegistryValueKind.String);
+            }
+
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: true);
+            }
+            catch (Exception saveException) when (saveException is IOException
+                or UnauthorizedAccessException or SecurityException)
+            {
+                if (startupChanged)
+                {
+                    try
+                    {
+                        if (previousValue is null)
+                            writableKey!.DeleteValue(StartupValueName, throwOnMissingValue: false);
+                        else
+                            writableKey!.SetValue(StartupValueName, previousValue, previousKind);
+                    }
+                    catch (Exception rollbackException) when (rollbackException is IOException
+                        or UnauthorizedAccessException or SecurityException)
+                    {
+                        throw new IOException("The settings file could not be saved and the previous Windows startup "
+                            + "entry could not be restored. Check Windows Startup Apps and save your preference again. "
+                            + $"{saveException.Message} {rollbackException.Message}",
+                            new AggregateException(saveException, rollbackException));
+                    }
+                }
+
+                throw;
+            }
         }
         finally
         {
@@ -68,6 +121,29 @@ internal static class SettingsStore
                 // Cleanup must not mask the original persistence error.
             }
         }
+    }
+
+    private static string GetStartupCommand()
+    {
+        string? executable = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(executable) || !File.Exists(executable))
+        {
+            throw new IOException("The running executable could not be located. Run EdgeSwitch.exe again before enabling startup.");
+        }
+
+        string command = $"\"{executable}\"";
+        if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            string entryPath = Path.GetFullPath(Environment.GetCommandLineArgs()[0]);
+            if (!File.Exists(entryPath))
+                throw new IOException("The EdgeSwitch application file could not be located. Run EdgeSwitch.exe again before enabling startup.");
+            command += $" \"{entryPath}\"";
+        }
+
+        if (command.Length > 260)
+            throw new IOException("The Windows startup command exceeds 260 characters. Move EdgeSwitch to a shorter path and try again.");
+
+        return command;
     }
 
     private static string GetSettingsPath()

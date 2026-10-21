@@ -237,6 +237,14 @@
                 </StackPanel>
                 <TextBlock Text="How long the toolbar stays open after the pointer leaves it."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,7,0,8" />
+                <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
+                <CheckBox x:Name="StartWithWindowsCheckBox"
+                          Content="Start EdgeSwitch when I sign _in"
+                          Style="{StaticResource ProcessCheckBoxStyle}"
+                          AutomationProperties.Name="Start EdgeSwitch when I sign in"
+                          AutomationProperties.HelpText="Start automatically when you sign in to Windows. Applies only to your account after choosing Save." />
+                <TextBlock Text="Off by default. Applies only to your Windows account after you choose Save."
+                           Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,8" />
             </StackPanel>
         </ScrollViewer>
         <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
