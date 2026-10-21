@@ -8,6 +8,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace EdgeSwitch;
@@ -42,6 +44,8 @@ public partial class MainWindow : Window
     private long nextCatalogRefresh;
     private long nextMonitorRefresh;
     private nint lastActiveWindow;
+    private bool layoutDirty = true;
+    private Size toolbarSize;
 
     internal MainWindow(ToolbarSettings settings)
     {
@@ -257,18 +261,40 @@ public partial class MainWindow : Window
     private void Place(DisplayMonitor monitor)
     {
         bool vertical = settings.TriggerEdge is ToolbarEdge.Left or ToolbarEdge.Right;
-        CardOrientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
-        DockPanel.SetDock(HeaderPanel, vertical ? Dock.Top : Dock.Left);
-        HeaderPanel.Margin = vertical ? new Thickness(0, 0, 0, 10) : new Thickness(0, 0, 14, 0);
-        HeaderPanel.Width = vertical ? double.NaN : 190;
-        WindowScroller.VerticalScrollBarVisibility = vertical ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-        WindowScroller.HorizontalScrollBarVisibility = vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        Orientation orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+        if (CardOrientation != orientation)
+        {
+            CardOrientation = orientation;
+            DockPanel.SetDock(AppButton, vertical ? Dock.Top : Dock.Left);
+            DockPanel.SetDock(EntrySeparator, vertical ? Dock.Top : Dock.Left);
+            EntrySeparator.Width = vertical ? double.NaN : 1;
+            EntrySeparator.Height = vertical ? 1 : double.NaN;
+            EntrySeparator.Margin = vertical ? new Thickness(2, 4, 2, 4) : new Thickness(4, 2, 4, 2);
+            WindowScroller.VerticalScrollBarVisibility = vertical ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+            WindowScroller.HorizontalScrollBarVisibility = vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+            layoutDirty = true;
+        }
+        if (layoutDirty)
+        {
+            ToolbarChrome.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            toolbarSize = ToolbarChrome.DesiredSize;
+            layoutDirty = false;
+        }
         double scale = monitor.Scale > 0 ? monitor.Scale : 1;
         NativeRect b = monitor.Bounds;
-        double desiredWidth = vertical ? 310 : Math.Min(1040, Math.Max(520, 220 + cards.Count * 272));
-        double desiredHeight = vertical ? Math.Min(680, 170 + Math.Max(1, cards.Count) * 70) : 170;
-        int width = Math.Min(b.Width, (int)Math.Round(desiredWidth * scale));
-        int height = Math.Min(b.Height, (int)Math.Round(desiredHeight * scale));
+        double maxWidth = Math.Min(vertical ? double.PositiveInfinity : 1040, b.Width / scale);
+        double maxHeight = Math.Min(vertical ? 680 : double.PositiveInfinity, b.Height / scale);
+        double desiredWidth = toolbarSize.Width;
+        double desiredHeight = toolbarSize.Height;
+        if (vertical && desiredHeight > maxHeight)
+            desiredWidth += SystemParameters.VerticalScrollBarWidth;
+        else if (!vertical && desiredWidth > maxWidth)
+            desiredHeight += SystemParameters.HorizontalScrollBarHeight;
+        desiredWidth = Math.Min(maxWidth, desiredWidth);
+        desiredHeight = Math.Min(maxHeight, desiredHeight);
+        // Round outward: a fractional-DIP shortage would create an unnecessary scrollbar.
+        int width = Math.Min(b.Width, (int)Math.Ceiling(desiredWidth * scale));
+        int height = Math.Min(b.Height, (int)Math.Ceiling(desiredHeight * scale));
         int x = settings.Edge switch
         {
             ToolbarEdge.Left or ToolbarEdge.LeftTop or ToolbarEdge.LeftBottom
@@ -318,35 +344,55 @@ public partial class MainWindow : Window
             ReportError($"Window list may be out of date: {exception.Message}");
             return;
         }
+        bool changed = false;
         var liveHandles = windows.Select(w => w.Handle).ToHashSet();
         for (int i = cards.Count - 1; i >= 0; i--)
             if (!liveHandles.Contains(cards[i].Entry.Handle))
+            {
                 cards.RemoveAt(i);
+                changed = true;
+            }
         for (int index = 0; index < windows.Count; index++)
         {
             WindowEntry entry = windows[index];
             WindowCard? existing = cards.FirstOrDefault(c => c.Entry.Handle == entry.Handle);
             if (existing is null)
+            {
                 cards.Insert(index, new WindowCard(entry));
+                changed = true;
+            }
             else
             {
-                existing.Update(entry);
+                changed |= existing.Update(entry);
                 int oldIndex = cards.IndexOf(existing);
                 if (oldIndex != index)
+                {
                     cards.Move(oldIndex, index);
+                    changed = true;
+                }
             }
         }
-        CountText.Text = windows.Count == 1 ? "1 local window" : $"{windows.Count} local windows";
-        EmptyText.Visibility = windows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        layoutDirty |= changed;
+        EntrySeparator.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         WindowScroller.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AppButton.ToolTip = windows.Count > 0 ? "EdgeSwitch — Settings" : "EdgeSwitch — Settings\nNo matching windows.";
         bool missingMonitor = !string.IsNullOrEmpty(settings.MonitorDeviceName) && !monitors.Any(m => m.DeviceName == settings.MonitorDeviceName);
         if (Environment.TickCount64 >= statusMessageUntil)
-            StatusText.Text = missingMonitor ? "Saved display disconnected; using the primary display." : "Click to switch · Esc to hide";
+            SetStatus(missingMonitor ? "Saved display disconnected; using the primary display." : "");
+    }
+
+    private void SetStatus(string message)
+    {
+        if (StatusText.Text == message)
+            return;
+        StatusText.Text = message;
+        StatusText.Visibility = message.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        layoutDirty = true;
     }
 
     private void ReportError(string message)
     {
-        StatusText.Text = message;
+        SetStatus(message);
         statusMessageUntil = Environment.TickCount64 + 4000;
         keepVisibleUntil = statusMessageUntil;
     }
@@ -377,7 +423,6 @@ public partial class MainWindow : Window
     }
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
-    private void OnHideClick(object sender, RoutedEventArgs e) => Conceal();
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
@@ -389,11 +434,14 @@ public partial class MainWindow : Window
 
     private sealed class WindowCard : INotifyPropertyChanged
     {
+        private static readonly ImageSource DefaultIcon = CreateIconSource(System.Drawing.SystemIcons.Application.Handle);
         private bool isActive;
         public WindowEntry Entry { get; private set; }
         public string Title => Entry.Title;
-        public string Subtitle => Entry.Subtitle;
-        public string ToolTip => $"{Title}\n{Subtitle}";
+        public bool IsRemoteDesktop => Entry.IsRemoteDesktop;
+        public string SessionName => Entry.SessionName;
+        public string ToolTip => $"{Title}\n{Entry.Subtitle}";
+        public ImageSource Icon { get; private set; }
         public bool IsActive
         {
             get => isActive;
@@ -405,12 +453,48 @@ public partial class MainWindow : Window
             }
         }
         public event PropertyChangedEventHandler? PropertyChanged;
-        public WindowCard(WindowEntry entry) => Entry = entry;
-        public void Update(WindowEntry entry)
+        public WindowCard(WindowEntry entry)
         {
-            if (Entry == entry) return;
             Entry = entry;
+            Icon = LoadIcon(entry.Handle);
+        }
+
+        public bool Update(WindowEntry entry)
+        {
+            if (Entry == entry) return false;
+            bool identityChanged = Entry.Handle != entry.Handle || Entry.ProcessId != entry.ProcessId
+                || !string.Equals(Entry.ProcessName, entry.ProcessName, StringComparison.OrdinalIgnoreCase);
+            Entry = entry;
+            if (identityChanged)
+                Icon = LoadIcon(entry.Handle);
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+            return true;
+        }
+
+        private static ImageSource CreateIconSource(nint icon)
+        {
+            BitmapSource image = Imaging.CreateBitmapSourceFromHIcon(icon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            image.Freeze();
+            return image;
+        }
+
+        private static ImageSource LoadIcon(nint hwnd)
+        {
+            nint icon = NativeMethods.CopyWindowIcon(hwnd);
+            if (icon == nint.Zero)
+                return DefaultIcon;
+            try
+            {
+                return CreateIconSource(icon);
+            }
+            catch (Exception exception) when (exception is ArgumentException or Win32Exception)
+            {
+                return DefaultIcon;
+            }
+            finally
+            {
+                NativeMethods.DestroyIcon(icon);
+            }
         }
     }
 }

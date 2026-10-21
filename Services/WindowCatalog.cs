@@ -108,7 +108,13 @@ internal sealed class WindowCatalog
 
         windows.Sort(static (left, right) =>
         {
-            int comparison = StringComparer.OrdinalIgnoreCase.Compare(left.Title, right.Title);
+            int comparison = left.IsRemoteDesktop.CompareTo(right.IsRemoteDesktop);
+            if (comparison != 0)
+            {
+                return comparison;
+            }
+
+            comparison = StringComparer.OrdinalIgnoreCase.Compare(left.Title, right.Title);
             if (comparison != 0)
             {
                 return comparison;

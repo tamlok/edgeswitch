@@ -199,6 +199,52 @@ internal static class NativeMethods
         }
     }
 
+    // WM_GETICON and class icons are borrowed. Only return an owned copy so
+    // callers can release it without altering another application's icon.
+    internal static nint CopyWindowIcon(nint hwnd)
+    {
+        const uint wmGetIcon = 0x007F;
+        const uint timeoutFlags = 0x0001 | 0x0002; // SMTO_BLOCK | SMTO_ABORTIFHUNG
+        nint icon = nint.Zero;
+        for (int kind = 2; kind >= 0; kind--) // SMALL2, BIG, SMALL
+        {
+            if (SendMessageTimeout(hwnd, wmGetIcon, new nint(kind), nint.Zero,
+                timeoutFlags, 50, out icon) == nint.Zero)
+            {
+                icon = nint.Zero;
+                break;
+            }
+            if (icon != nint.Zero)
+                break;
+        }
+        if (icon == nint.Zero)
+            icon = GetClassIcon(hwnd, -14); // GCLP_HICON
+        if (icon == nint.Zero)
+            icon = GetClassIcon(hwnd, -34); // GCLP_HICONSM
+        return icon == nint.Zero ? nint.Zero : CopyIcon(icon);
+    }
+
+    private static nint GetClassIcon(nint hwnd, int index) => nint.Size == 8
+        ? GetClassLongPtr(hwnd, index)
+        : new nint(unchecked((int)GetClassLong(hwnd, index)));
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
+    private static extern nint SendMessageTimeout(nint hwnd, uint message, nint wParam, nint lParam,
+        uint flags, uint timeout, out nint result);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    private static extern nint GetClassLongPtr(nint hwnd, int index);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongW")]
+    private static extern uint GetClassLong(nint hwnd, int index);
+
+    [DllImport("user32.dll")]
+    private static extern nint CopyIcon(nint icon);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyIcon(nint icon);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetCursorPos(out NativePoint point);

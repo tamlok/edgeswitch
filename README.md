@@ -13,18 +13,20 @@ dotnet build EdgeSwitch.csproj -c Release
 .\bin\Release\net10.0-windows\EdgeSwitch.exe
 ```
 
-The toolbar starts on the **left edge**, with `mstsc.exe` selected. Its notification-area icon provides **Show toolbar**, **Settings**, and **Exit EdgeSwitch**. Windows may put the icon under **Show Hidden Icons**. Only one instance runs per Windows login session. Alt+F4 hides the toolbar; use the tray menu to quit.
+The toolbar starts on the **left edge**, with `mstsc.exe` selected. Click the **EdgeSwitch icon** at the start of the toolbar to open Settings. Its notification-area icon also provides **Show toolbar**, **Settings**, and **Exit EdgeSwitch**. Windows may put the icon under **Show Hidden Icons**. Only one instance runs per Windows login session. Alt+F4 hides the toolbar; use the tray menu to quit.
 
 ### Switch Remote Desktop sessions
 
 1. Run EdgeSwitch on the **local machine** that starts your Remote Desktop connections, not inside the remote desktop.
 2. Open two or more Remote Desktop Connection (`mstsc.exe`) windows and connect to your hosts. They may be fullscreen.
 3. Rest the pointer against the left screen edge for about 150–250 ms. Move onto the revealed toolbar.
-4. Click the session title to switch to that window. Minimized windows are restored. The toolbar hides after a successful switch.
+4. Click the session icon/name to switch to that window. Minimized windows are restored. The toolbar hides after a successful switch.
 
-Each qualifying **window** gets its own entry, even when several belong to one process. Entries show the current window title, executable, and process ID. The visible list refreshes once per second. Hovering reveals the toolbar **without taking keyboard focus** from the current application; clicking performs the activation.
+The compact toolbar shows the **EdgeSwitch icon**, a separator, then application entries. Each qualifying **window** gets its own entry, even when several belong to one process. Ordinary windows show **only their icon**; Remote Desktop (`mstsc.exe` and `msrdc.exe`) entries follow them and show **icon-session name**. Session names come from the window title with the conventional English “ - Remote Desktop Connection” or “ - Remote Desktop” suffix removed; other/localized titles are preserved. Long names are truncated visually, not in the tooltip. Hover an entry for its full title, executable, and process ID. Windows without an available window/class icon use the standard Windows application icon.
 
-The toolbar stays open while the pointer is over it or resting on its trigger edge, it has keyboard focus, or Settings is open. Otherwise it hides after the configured delay (700 ms by default). **Hide** or **Esc** hides it immediately. After explicit hiding, move away from the edge before hovering again. Launching or selecting Show toolbar gives you four seconds to reach it. Transient native enumeration or positioning errors are reported without stopping the toolbar's timer; the last known window list is retained until a refresh succeeds.
+The toolbar sizes to its contents and scrolls along its selected edge when needed. With no matching windows, only the EdgeSwitch icon remains. The visible list refreshes once per second. Hovering reveals the toolbar **without taking keyboard focus** from the current application; clicking performs the activation.
+
+The toolbar stays open while the pointer is over it or resting on its trigger edge, it has keyboard focus, or Settings is open. Otherwise it hides after the configured delay (700 ms by default). **Esc** or **Alt+F4** hides it immediately. After explicit hiding, move away from the edge before hovering again. Launching or selecting Show toolbar gives you four seconds to reach it. Transient native enumeration or positioning errors are reported without stopping the toolbar's timer; the last known window list is retained until a refresh succeeds.
 
 ## Settings
 
@@ -61,6 +63,8 @@ dotnet publish EdgeSwitch.csproj -c Release -r win-x64 --self-contained true `
 Distribute `artifacts/win-x64/EdgeSwitch.exe`; the .NET runtime is bundled. The first publish may download Microsoft runtime packs. Use `win-arm64` instead of `win-x64` for ARM64 machines. The executable is unsigned; Windows may display a reputation warning.
 
 ## Verification
+
+The compact icon-toolbar update passed a Release build with zero warnings/errors and 257 assertions in a temporary hosted-WPF/native-window smoke harness. Coverage included distinct real window icons, icon reuse and HICON cleanup, a slow icon query bounded to 65 ms, empty/ordinary/mixed entries, all 12 placements, high-DPI rounding without unnecessary scrollbars, horizontal/vertical overflow, long/renamed/localized RDP labels, Settings access through the app icon, Escape hiding, minimized restoration, and visible activation-denied feedback. A vertical-overflow defect and fractional-DPI scrollbar defect were reproduced and fixed; rendered empty, icon-only, mixed horizontal/vertical, and long-label toolbars were inspected. RDP labels used synthetic metadata, not connected remote sessions. The rebuilt standalone executable was restarted and its compact UI plus app-icon Settings/Cancel flow passed UI Automation verification. The desktop denied pointer access and returned no foreground window during this run, so successful mouse-driven focus switching is **not** claimed as reverified.
 
 The 12-location update passed a Release build with zero warnings/errors and 556 assertions in a temporary hosted-WPF smoke harness against the built application. All 12 choices passed Settings save/apply/reopen and native HWND position/orientation checks. Coverage included negative-origin and small/high-DPI synthetic monitor bounds, two-pixel trigger boundaries, Automatic shared-seam exclusion and exposed segments, explicit-display seams, focus-preserving reveal, dwell/hide/rearm transitions, Cancel isolation, legacy numeric settings, and invalid-edge rejection. Rendered Settings (including minimum-width layout), picker, horizontal toolbar, and vertical toolbar snapshots were inspected. Monitor topology and pointer/time probes were controlled inputs, not a physical multi-display or mouse-driven end-to-end test. Original user settings were restored after the smoke run.
 
