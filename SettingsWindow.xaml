@@ -219,7 +219,7 @@
                                   AutomationProperties.Name="Toolbar display" />
                     </StackPanel>
                 </Grid>
-                <TextBlock Text="The first word chooses the trigger edge and toolbar direction; the second aligns it along that edge. Plain edges are centered. Hover anywhere on the chosen edge to reveal."
+                <TextBlock Text="The first word chooses the trigger edge and toolbar direction; the second aligns it along that edge. Plain edges are centered. Hover over the portion of the edge occupied by the toolbar to reveal it."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,7,0,0" />
                 <TextBlock Text="Automatic uses the selected edge only where displays do not meet."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,7,0,0" />

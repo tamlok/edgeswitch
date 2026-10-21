@@ -141,7 +141,7 @@ public partial class MainWindow : Window
 
     private void UpdatePointer(NativePoint pointer, long now)
     {
-        DisplayMonitor? edge = FindEdge(pointer);
+        DisplayMonitor? edge = FindEdge(pointer, now);
         if (edge is null)
         {
             edgeArmed = true;
@@ -158,7 +158,6 @@ public partial class MainWindow : Window
             }
             else if (now - dwellStarted >= 150)
             {
-                RefreshWindows();
                 Reveal(edge.Value);
             }
             return;
@@ -218,7 +217,7 @@ public partial class MainWindow : Window
         return selected.Bounds.Width > 0 ? new[] { selected } : monitors;
     }
 
-    private DisplayMonitor? FindEdge(NativePoint pointer)
+    private DisplayMonitor? FindEdge(NativePoint pointer, long now)
     {
         const int slop = 2;
         ToolbarEdge triggerEdge = settings.TriggerEdge;
@@ -243,7 +242,19 @@ public partial class MainWindow : Window
             // display layouts. An explicit monitor deliberately allows its shared edge.
             if (string.IsNullOrEmpty(settings.MonitorDeviceName) && monitors.Any(m => m.Bounds.Contains(outsideX, outsideY)))
                 continue;
-            return monitor;
+            // Refresh before testing the span: windows may have opened or closed
+            // while hidden, even when the pointer is outside the previous span.
+            if (!revealed && now >= nextCatalogRefresh)
+            {
+                RefreshWindows();
+                nextCatalogRefresh = now + 1000;
+            }
+            NativeRect toolbarBounds = GetToolbarBounds(monitor);
+            bool withinSpan = triggerEdge is ToolbarEdge.Left or ToolbarEdge.Right
+                ? pointer.Y >= toolbarBounds.Top && pointer.Y < toolbarBounds.Bottom
+                : pointer.X >= toolbarBounds.Left && pointer.X < toolbarBounds.Right;
+            if (withinSpan)
+                return monitor;
         }
         return null;
     }
@@ -258,7 +269,7 @@ public partial class MainWindow : Window
         Place(monitor);
     }
 
-    private void Place(DisplayMonitor monitor)
+    private NativeRect GetToolbarBounds(DisplayMonitor monitor)
     {
         bool vertical = settings.TriggerEdge is ToolbarEdge.Left or ToolbarEdge.Right;
         Orientation orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
@@ -313,9 +324,15 @@ public partial class MainWindow : Window
                 or ToolbarEdge.LeftBottom or ToolbarEdge.RightBottom => b.Bottom - height,
             _ => b.Top + (b.Height - height) / 2
         };
+        return new NativeRect { Left = x, Top = y, Right = x + width, Bottom = y + height };
+    }
+
+    private void Place(DisplayMonitor monitor)
+    {
+        NativeRect bounds = GetToolbarBounds(monitor);
         try
         {
-            NativeMethods.MoveTopmost(handle, x, y, width, height);
+            NativeMethods.MoveTopmost(handle, bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         }
         catch (Win32Exception exception)
         {

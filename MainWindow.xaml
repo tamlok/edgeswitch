@@ -48,11 +48,9 @@
                   <StackPanel Orientation="Horizontal">
                     <Image Source="{Binding Icon}" Width="24" Height="24"
                            RenderOptions.BitmapScalingMode="HighQuality" />
-                    <StackPanel x:Name="RemoteSessionLabel" Orientation="Horizontal" Visibility="Collapsed"
-                                VerticalAlignment="Center">
-                      <TextBlock Text="-" Margin="4,0,2,0" />
-                      <TextBlock Text="{Binding SessionName}" MaxWidth="160" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                    <TextBlock x:Name="RemoteSessionLabel" Text="{Binding SessionName}" Visibility="Collapsed"
+                               VerticalAlignment="Center" Margin="4,0,0,0" MaxWidth="160"
+                               TextTrimming="CharacterEllipsis" />
                   </StackPanel>
                 </Button>
                 <DataTemplate.Triggers>
