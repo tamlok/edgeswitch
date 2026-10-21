@@ -45,8 +45,22 @@ public partial class SettingsWindow : Window
         }
 
         CaptureList.ItemsSource = processChoices;
-        EdgePicker.ItemsSource = Enum.GetValues<ToolbarEdge>();
-        EdgePicker.SelectedItem = workingCopy.Edge;
+        EdgePicker.ItemsSource = new EdgeChoice[]
+        {
+            new(ToolbarEdge.Left, "Left"),
+            new(ToolbarEdge.LeftTop, "Left-top"),
+            new(ToolbarEdge.LeftBottom, "Left-bottom"),
+            new(ToolbarEdge.Top, "Top"),
+            new(ToolbarEdge.TopLeft, "Top-left"),
+            new(ToolbarEdge.TopRight, "Top-right"),
+            new(ToolbarEdge.Right, "Right"),
+            new(ToolbarEdge.RightTop, "Right-top"),
+            new(ToolbarEdge.RightBottom, "Right-bottom"),
+            new(ToolbarEdge.Bottom, "Bottom"),
+            new(ToolbarEdge.BottomLeft, "Bottom-left"),
+            new(ToolbarEdge.BottomRight, "Bottom-right")
+        };
+        EdgePicker.SelectedValue = workingCopy.Edge;
         HideDelayInput.Text = workingCopy.HideDelayMilliseconds.ToString(CultureInfo.CurrentCulture);
         PopulateProcesses();
         PopulateMonitors();
@@ -240,9 +254,9 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        if (EdgePicker.SelectedItem is not ToolbarEdge edge || !Enum.IsDefined(edge))
+        if (EdgePicker.SelectedValue is not ToolbarEdge edge || !Enum.IsDefined(edge))
         {
-            ShowError("Choose a toolbar edge: Left, Top, Right, or Bottom.");
+            ShowError("Choose a toolbar location from the list.");
             EdgePicker.Focus();
             return;
         }
@@ -353,6 +367,8 @@ public partial class SettingsWindow : Window
 
         public event PropertyChangedEventHandler? PropertyChanged;
     }
+
+    internal sealed record EdgeChoice(ToolbarEdge Edge, string DisplayName);
 
     internal sealed record MonitorChoice(string DeviceName, string DisplayName);
 }

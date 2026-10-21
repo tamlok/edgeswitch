@@ -9,7 +9,15 @@ internal enum ToolbarEdge
     Left,
     Top,
     Right,
-    Bottom
+    Bottom,
+    LeftTop,
+    LeftBottom,
+    TopLeft,
+    TopRight,
+    RightTop,
+    RightBottom,
+    BottomLeft,
+    BottomRight
 }
 
 internal sealed class ToolbarSettings
@@ -17,6 +25,15 @@ internal sealed class ToolbarSettings
     private static readonly char[] InvalidProcessNameCharacters = Path.GetInvalidFileNameChars();
 
     public ToolbarEdge Edge { get; set; } = ToolbarEdge.Left;
+
+    internal ToolbarEdge TriggerEdge => Edge switch
+    {
+        ToolbarEdge.LeftTop or ToolbarEdge.LeftBottom => ToolbarEdge.Left,
+        ToolbarEdge.TopLeft or ToolbarEdge.TopRight => ToolbarEdge.Top,
+        ToolbarEdge.RightTop or ToolbarEdge.RightBottom => ToolbarEdge.Right,
+        ToolbarEdge.BottomLeft or ToolbarEdge.BottomRight => ToolbarEdge.Bottom,
+        _ => Edge
+    };
 
     public string MonitorDeviceName { get; set; } = "";
 

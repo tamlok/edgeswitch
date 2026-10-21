@@ -217,12 +217,13 @@ public partial class MainWindow : Window
     private DisplayMonitor? FindEdge(NativePoint pointer)
     {
         const int slop = 2;
+        ToolbarEdge triggerEdge = settings.TriggerEdge;
         foreach (DisplayMonitor monitor in EligibleMonitors())
         {
             NativeRect b = monitor.Bounds;
             if (!b.Contains(pointer.X, pointer.Y))
                 continue;
-            bool hit = settings.Edge switch
+            bool hit = triggerEdge switch
             {
                 ToolbarEdge.Left => pointer.X < b.Left + slop,
                 ToolbarEdge.Top => pointer.Y < b.Top + slop,
@@ -232,8 +233,8 @@ public partial class MainWindow : Window
             };
             if (!hit)
                 continue;
-            int outsideX = settings.Edge switch { ToolbarEdge.Left => b.Left - 1, ToolbarEdge.Right => b.Right, _ => pointer.X };
-            int outsideY = settings.Edge switch { ToolbarEdge.Top => b.Top - 1, ToolbarEdge.Bottom => b.Bottom, _ => pointer.Y };
+            int outsideX = triggerEdge switch { ToolbarEdge.Left => b.Left - 1, ToolbarEdge.Right => b.Right, _ => pointer.X };
+            int outsideY = triggerEdge switch { ToolbarEdge.Top => b.Top - 1, ToolbarEdge.Bottom => b.Bottom, _ => pointer.Y };
             // On Automatic, ignore shared seams but retain exposed segments of uneven
             // display layouts. An explicit monitor deliberately allows its shared edge.
             if (string.IsNullOrEmpty(settings.MonitorDeviceName) && monitors.Any(m => m.Bounds.Contains(outsideX, outsideY)))
@@ -255,7 +256,7 @@ public partial class MainWindow : Window
 
     private void Place(DisplayMonitor monitor)
     {
-        bool vertical = settings.Edge is ToolbarEdge.Left or ToolbarEdge.Right;
+        bool vertical = settings.TriggerEdge is ToolbarEdge.Left or ToolbarEdge.Right;
         CardOrientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
         DockPanel.SetDock(HeaderPanel, vertical ? Dock.Top : Dock.Left);
         HeaderPanel.Margin = vertical ? new Thickness(0, 0, 0, 10) : new Thickness(0, 0, 14, 0);
@@ -268,8 +269,22 @@ public partial class MainWindow : Window
         double desiredHeight = vertical ? Math.Min(680, 170 + Math.Max(1, cards.Count) * 70) : 170;
         int width = Math.Min(b.Width, (int)Math.Round(desiredWidth * scale));
         int height = Math.Min(b.Height, (int)Math.Round(desiredHeight * scale));
-        int x = settings.Edge switch { ToolbarEdge.Left => b.Left, ToolbarEdge.Right => b.Right - width, _ => b.Left + (b.Width - width) / 2 };
-        int y = settings.Edge switch { ToolbarEdge.Top => b.Top, ToolbarEdge.Bottom => b.Bottom - height, _ => b.Top + (b.Height - height) / 2 };
+        int x = settings.Edge switch
+        {
+            ToolbarEdge.Left or ToolbarEdge.LeftTop or ToolbarEdge.LeftBottom
+                or ToolbarEdge.TopLeft or ToolbarEdge.BottomLeft => b.Left,
+            ToolbarEdge.Right or ToolbarEdge.RightTop or ToolbarEdge.RightBottom
+                or ToolbarEdge.TopRight or ToolbarEdge.BottomRight => b.Right - width,
+            _ => b.Left + (b.Width - width) / 2
+        };
+        int y = settings.Edge switch
+        {
+            ToolbarEdge.Top or ToolbarEdge.TopLeft or ToolbarEdge.TopRight
+                or ToolbarEdge.LeftTop or ToolbarEdge.RightTop => b.Top,
+            ToolbarEdge.Bottom or ToolbarEdge.BottomLeft or ToolbarEdge.BottomRight
+                or ToolbarEdge.LeftBottom or ToolbarEdge.RightBottom => b.Bottom - height,
+            _ => b.Top + (b.Height - height) / 2
+        };
         try
         {
             NativeMethods.MoveTopmost(handle, x, y, width, height);

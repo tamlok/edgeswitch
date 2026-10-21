@@ -203,13 +203,14 @@
                 <TextBlock Text="Placement" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="150" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,12,0">
                         <Label Content="Toolbar ed_ge" Target="{Binding ElementName=EdgePicker}"
                                Foreground="{DynamicResource TextBrush}" Padding="0,0,0,5" />
-                        <ComboBox x:Name="EdgePicker" AutomationProperties.Name="Toolbar edge" />
+                        <ComboBox x:Name="EdgePicker" DisplayMemberPath="DisplayName" SelectedValuePath="Edge"
+                                  AutomationProperties.Name="Toolbar edge" />
                     </StackPanel>
                     <StackPanel Grid.Column="1">
                         <Label Content="_Display" Target="{Binding ElementName=MonitorPicker}"
@@ -218,6 +219,8 @@
                                   AutomationProperties.Name="Toolbar display" />
                     </StackPanel>
                 </Grid>
+                <TextBlock Text="The first word chooses the trigger edge and toolbar direction; the second aligns it along that edge. Plain edges are centered. Hover anywhere on the chosen edge to reveal."
+                           Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,7,0,0" />
                 <TextBlock Text="Automatic uses the selected edge only where displays do not meet."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,7,0,0" />
                 <TextBlock x:Name="MonitorWarning" Foreground="#FBBF24" TextWrapping="Wrap"

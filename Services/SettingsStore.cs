@@ -98,7 +98,7 @@ internal static class SettingsStore
                     || !Enum.IsDefined(parsed)
                     || !string.Equals(name, parsed.ToString(), StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidDataException("Edge must be Left, Top, Right, or Bottom.");
+                    throw new InvalidDataException("Edge must be a supported toolbar location.");
                 }
 
                 settings.Edge = parsed;
@@ -110,7 +110,7 @@ internal static class SettingsStore
             }
             else
             {
-                throw new InvalidDataException("Edge must be Left, Top, Right, or Bottom.");
+                throw new InvalidDataException("Edge must be a supported toolbar location.");
             }
         }
 
@@ -162,7 +162,7 @@ internal static class SettingsStore
     {
         if (!Enum.IsDefined(settings.Edge))
         {
-            throw new InvalidDataException("Edge must be Left, Top, Right, or Bottom.");
+            throw new InvalidDataException("Edge must be a supported toolbar location.");
         }
 
         if (settings.MonitorDeviceName is null)
