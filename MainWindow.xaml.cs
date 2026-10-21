@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -149,7 +151,7 @@ public partial class MainWindow : Window
         }
         if (!revealed)
         {
-            if (!edgeArmed || edge is null)
+            if (switching || !edgeArmed || edge is null)
                 return;
             if (dwellMonitor != edge.Value.DeviceName)
             {
@@ -394,7 +396,9 @@ public partial class MainWindow : Window
         layoutDirty |= changed;
         EntrySeparator.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         WindowScroller.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        AppButton.ToolTip = windows.Count > 0 ? "EdgeSwitch — Settings" : "EdgeSwitch — Settings\nNo matching windows.";
+        AppButton.ToolTip = windows.Count > 0
+            ? "Show host desktop (right-click for Settings)"
+            : "Show host desktop (right-click for Settings)\nNo matching windows.";
         bool missingMonitor = !string.IsNullOrEmpty(settings.MonitorDeviceName) && !monitors.Any(m => m.DeviceName == settings.MonitorDeviceName);
         if (Environment.TickCount64 >= statusMessageUntil)
             SetStatus(missingMonitor ? "Saved display disconnected; using the primary display." : "");
@@ -441,7 +445,34 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
+    private void OnHostDesktopClick(object sender, RoutedEventArgs e)
+    {
+        if (switching || settingsOpen)
+            return;
+        switching = true;
+        try
+        {
+            // Stay out of the shell's minimize batch so hover can reveal us again.
+            Conceal();
+            NativeMethods.ShowHostDesktop();
+        }
+        catch (Exception exception) when (exception is COMException or TargetInvocationException or InvalidOperationException)
+        {
+            ShowFromTray();
+            ReportError($"Could not show the host desktop: {exception.GetBaseException().Message}");
+        }
+        finally
+        {
+            switching = false;
+        }
+    }
+
+    private void OnSettingsRightClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (!switching)
+            OpenSettings();
+    }
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)

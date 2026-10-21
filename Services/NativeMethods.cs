@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -169,6 +170,22 @@ internal static class NativeMethods
     public static void HideWindow(nint hwnd)
     {
         ShowWindow(hwnd, SwHide);
+    }
+
+    internal static void ShowHostDesktop()
+    {
+        Type shellType = Type.GetTypeFromProgID("Shell.Application")
+            ?? throw new InvalidOperationException("Windows Explorer's desktop service is unavailable.");
+        object shell = Activator.CreateInstance(shellType)
+            ?? throw new InvalidOperationException("Windows Explorer's desktop service could not be started.");
+        try
+        {
+            shell.GetType().InvokeMember("MinimizeAll", BindingFlags.InvokeMethod, null, shell, null);
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(shell);
+        }
     }
 
     internal static string? GetProcessName(uint processId, StringBuilder imagePath)

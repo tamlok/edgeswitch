@@ -1,6 +1,9 @@
 # Run from the repository root after a Release build, using .NET 10 PowerShell: pwsh -STA -File tests/ToolbarCaptureSmoke.ps1
 # Real helper windows exercise enumeration and empty-to-populated layout without changing saved settings.
-param([string]$AssemblyPath = 'bin/Release/net10.0-windows/EdgeSwitch.dll')
+param(
+    [string]$AssemblyPath = 'bin/Release/net10.0-windows/EdgeSwitch.dll',
+    [switch]$ExerciseHostDesktop
+)
 
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows -or [Environment]::Version.Major -lt 10) {
@@ -197,6 +200,99 @@ function Assert-SharedSpan {
     }
 }
 
+function Assert-IconSettings {
+    $state = @{ Opened = $false; Error = $null }
+    $application = $app
+    $cancel = [Action]({
+        $dialog = $null
+        try {
+            $dialogs = @($application.Windows | Where-Object { $_.GetType().FullName -eq 'EdgeSwitch.SettingsWindow' })
+            if ($dialogs.Count -ne 1) { throw 'Right-click did not open the Settings window.' }
+            $dialog = $dialogs[0]
+            $state.Opened = $true
+            $dialog.FindName('CancelButton').RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
+        } catch {
+            $state.Error = $_.Exception.Message
+            if ($null -ne $dialog -and $dialog.IsVisible) { $dialog.DialogResult = $false }
+        }
+    }.GetNewClosure())
+    $app.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::ApplicationIdle, $cancel) | Out-Null
+    $mouse = [System.Windows.Input.Mouse]::PrimaryDevice
+    Assert-Condition ($null -ne $mouse) 'WPF mouse device unavailable for right-click regression.'
+    $rightClick = [System.Windows.Input.MouseButtonEventArgs]::new($mouse, 0, [System.Windows.Input.MouseButton]::Right)
+    $rightClick.RoutedEvent = [System.Windows.UIElement]::MouseRightButtonUpEvent
+    $toolbar.FindName('AppButton').RaiseEvent($rightClick)
+    Pump-Layout
+    Assert-Condition ($state.Opened -and $null -eq $state.Error) "Settings right-click failed: $($state.Error)"
+    Assert-Condition (-not $toolbar.GetType().GetField('settingsOpen', $flags).GetValue($toolbar)) 'Settings Cancel did not return to the toolbar.'
+    $native = $assembly.GetType('EdgeSwitch.NativeMethods')
+    $cards = $toolbar.GetType().GetField('cards', $flags).GetValue($toolbar)
+    foreach ($card in @($cards | Where-Object { $_.Entry.ProcessId -eq $helper.Id })) {
+        Assert-Condition (-not $native.GetMethod('IsIconic', $flags).Invoke($null, @($card.Entry.Handle))) 'Right-click unexpectedly minimized a helper window.'
+    }
+    Write-Output 'PASS: right-click on the existing logo opens Settings; Cancel returns without minimizing windows.'
+}
+
+function Assert-HostDesktopAction {
+    # Explicit opt-in only: MinimizeAll affects the interactive desktop, not just our helper.
+    $native = $assembly.GetType('EdgeSwitch.NativeMethods')
+    $isIconic = $native.GetMethod('IsIconic', $flags)
+    $isWindow = $native.GetMethod('IsWindow', $flags)
+    $cards = $toolbar.GetType().GetField('cards', $flags).GetValue($toolbar)
+    $targets = @($cards | Where-Object { $_.Entry.ProcessId -eq $helper.Id })
+    Assert-Condition ($targets.Count -eq 4) 'Desktop action requires the four disposable helper windows.'
+    foreach ($target in $targets) {
+        Assert-Condition (-not $isIconic.Invoke($null, @($target.Entry.Handle))) 'Desktop helper must start restored.'
+    }
+    $shell = $null
+    $didMinimize = $false
+    try {
+        $shellType = [Type]::GetTypeFromProgID('Shell.Application')
+        $shell = [Activator]::CreateInstance($shellType)
+        $toolbar.FindName('AppButton').RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        do {
+            Pump-Layout
+            $minimized = @($targets | Where-Object { $isIconic.Invoke($null, @($_.Entry.Handle)) }).Count
+            $didMinimize = $didMinimize -or $minimized -gt 0
+            if ($minimized -eq $targets.Count) { break }
+            Start-Sleep -Milliseconds 50
+        } while ($watch.ElapsedMilliseconds -lt 5000)
+        Assert-Condition ($minimized -eq $targets.Count) 'Host desktop click did not minimize the actual helper windows.'
+        foreach ($target in $targets) {
+            Assert-Condition ($isWindow.Invoke($null, @($target.Entry.Handle))) 'Host desktop action closed a window instead of minimizing it.'
+        }
+        Assert-Condition (-not $helper.HasExited) 'Host desktop action terminated the helper process.'
+        Assert-Condition (-not (Test-ToolbarVisible)) 'Host desktop action left the toolbar visible.'
+        $handle = [System.Windows.Interop.WindowInteropHelper]::new($toolbar).Handle
+        Assert-Condition (-not $isIconic.Invoke($null, @($handle))) 'The toolbar itself was minimized and cannot reveal normally.'
+    } finally {
+        if ($null -ne $shell) {
+            try {
+                # Only undo when this test observed its previously-restored helpers minimize.
+                # A no-op click or pre-command failure must not undo an older user action.
+                $didMinimize = $didMinimize -or @($targets | Where-Object { $isIconic.Invoke($null, @($_.Entry.Handle)) }).Count -gt 0
+                if ($didMinimize) {
+                    $shell.GetType().InvokeMember('UndoMinimizeALL', [Reflection.BindingFlags]::InvokeMethod, $null, $shell, $null) | Out-Null
+                }
+            } finally { [Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null }
+        }
+    }
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        Pump-Layout
+        $minimized = @($targets | Where-Object { $isIconic.Invoke($null, @($_.Entry.Handle)) }).Count
+        if ($minimized -eq 0) { break }
+        Start-Sleep -Milliseconds 50
+    } while ($watch.ElapsedMilliseconds -lt 5000)
+    Assert-Condition ($minimized -eq 0) 'UndoMinimizeALL did not restore the helper windows.'
+    Invoke-Toolbar 'ShowFromTray'
+    Pump-Layout
+    Assert-Condition (Test-ToolbarVisible) 'Toolbar could not be shown after the desktop action.'
+    Assert-ExactHoverSpan $settings.Edge.ToString()
+    Write-Output 'PASS: logo left-click minimizes real windows without closing them; desktop layout restored and toolbar reveal still works.'
+}
+
 function Get-EntryButton($card) {
     $container = $toolbar.FindName('WindowItems').ItemContainerGenerator.ContainerFromItem($card)
     Assert-Condition ($null -ne $container) 'Captured entry has no generated container.'
@@ -329,6 +425,8 @@ finally { foreach ($window in $windows) { $window.Dispose() } }
         Assert-Condition ((Get-EntryButton $card).ActualWidth -gt 40) 'RDP session label was not included in layout.'
     }
     Write-Output 'PASS: four synthetic Remote Desktop icon/name entries remain reachable after label growth.'
+    Assert-IconSettings
+    if ($ExerciseHostDesktop) { Assert-HostDesktopAction }
 } finally {
     if ($null -ne $app) { $app.Shutdown() }
     if ($null -ne $helper) {

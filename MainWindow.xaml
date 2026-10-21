@@ -15,8 +15,10 @@
       </Grid.RowDefinitions>
       <DockPanel x:Name="ToolbarLayout" LastChildFill="True">
         <Button x:Name="AppButton" DockPanel.Dock="Top" Width="40" Height="40" Padding="7" Margin="2"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Click="OnSettingsClick"
-                AutomationProperties.Name="EdgeSwitch settings" ToolTip="EdgeSwitch — Settings">
+                HorizontalAlignment="Left" VerticalAlignment="Top" Click="OnHostDesktopClick"
+                MouseRightButtonUp="OnSettingsRightClick" AutomationProperties.Name="Show host desktop"
+                AutomationProperties.HelpText="Right-click to open EdgeSwitch settings."
+                ToolTip="Show host desktop (right-click for Settings)">
           <Image Source="pack://application:,,,/Assets/EdgeSwitch.ico" Width="24" Height="24"
                  RenderOptions.BitmapScalingMode="HighQuality" />
         </Button>
