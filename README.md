@@ -62,7 +62,27 @@ dotnet publish EdgeSwitch.csproj -c Release -r win-x64 --self-contained true `
 
 Distribute `artifacts/win-x64/EdgeSwitch.exe`; the .NET runtime is bundled. The first publish may download Microsoft runtime packs. Use `win-arm64` instead of `win-x64` for ARM64 machines. The executable is unsigned; Windows may display a reputation warning.
 
+## Publish a framework-dependent executable
+
+This smaller release **does not bundle .NET**. The target PC must have the **.NET 10 Desktop Runtime (x64)** installed.
+
+```powershell
+dotnet publish EdgeSwitch.csproj -c Release -r win-x64 --self-contained false `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false `
+  -o artifacts/win-x64-framework-dependent
+```
+
+Copy `artifacts/win-x64-framework-dependent/EdgeSwitch.exe` to the target PC, exit its older EdgeSwitch instance, and launch the replacement. The `.pdb` is optional debugging data; saved settings remain in the user's existing settings file.
+
 ## Verification
+
+A captured-window visibility defect was reproduced locally: four windows were in the toolbar's model, but a stale 54×54 size cache left their viewport at zero. Pending WPF item/visibility layout is now applied before measuring and caching the toolbar. `tests/ToolbarCaptureSmoke.ps1` failed against the old binary and passed after the fix, covering empty-to-captured, repeated reveal, clearing and re-adding capture at all 12 positions, plus reachable Remote Desktop icon/name entries after label growth. The test uses disposable local native windows and synthetic RDP metadata, not sessions on another machine, and does not save or change user settings. The corrected four-entry rendered toolbar was inspected.
+
+After `dotnet build EdgeSwitch.csproj -c Release`, run the regression from the repository root with PowerShell 7 on Windows, running on .NET 10 or newer:
+
+```powershell
+pwsh -NoProfile -STA -File tests/ToolbarCaptureSmoke.ps1
+```
 
 The compact icon-toolbar update passed a Release build with zero warnings/errors and 257 assertions in a temporary hosted-WPF/native-window smoke harness. Coverage included distinct real window icons, icon reuse and HICON cleanup, a slow icon query bounded to 65 ms, empty/ordinary/mixed entries, all 12 placements, high-DPI rounding without unnecessary scrollbars, horizontal/vertical overflow, long/renamed/localized RDP labels, Settings access through the app icon, Escape hiding, minimized restoration, and visible activation-denied feedback. A vertical-overflow defect and fractional-DPI scrollbar defect were reproduced and fixed; rendered empty, icon-only, mixed horizontal/vertical, and long-label toolbars were inspected. RDP labels used synthetic metadata, not connected remote sessions. The rebuilt standalone executable was restarted and its compact UI plus app-icon Settings/Cancel flow passed UI Automation verification. The desktop denied pointer access and returned no foreground window during this run, so successful mouse-driven focus switching is **not** claimed as reverified.
 

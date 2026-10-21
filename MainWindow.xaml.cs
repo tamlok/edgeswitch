@@ -276,6 +276,8 @@ public partial class MainWindow : Window
         }
         if (layoutDirty)
         {
+            // Apply pending item/visibility changes before caching the natural size.
+            ToolbarChrome.UpdateLayout();
             ToolbarChrome.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             toolbarSize = ToolbarChrome.DesiredSize;
             layoutDirty = false;
