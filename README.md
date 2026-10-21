@@ -2,6 +2,8 @@
 
 A Windows screen-edge toolbar for switching **local application windows**, particularly separate fullscreen Remote Desktop sessions. Built with C#/.NET 10, WPF, and Win32; no third-party packages.
 
+The application artwork is embedded from `Assets/EdgeSwitch.ico` for the executable, both windows, and the notification-area icon. The icon preserves transparency and includes sizes from 16 to 256 pixels; no separate icon file is needed beside the published executable.
+
 ## Run
 
 Requires Windows 10/11 and the **.NET 10 Desktop Runtime**. To build from source, install the .NET 10 SDK, then run these commands from this directory:

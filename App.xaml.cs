@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using Forms = System.Windows.Forms;
@@ -23,6 +24,8 @@ public partial class App : Application
 {
     private Mutex? instance;
     private Forms.NotifyIcon? tray;
+    private Icon? trayIcon;
+    private Stream? trayIconStream;
     private bool ownsMutex;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -40,6 +43,10 @@ public partial class App : Application
         ToolbarSettings settings = SettingsStore.Load(out string? warning);
         var toolbar = new MainWindow(settings);
         MainWindow = toolbar;
+        trayIconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/EdgeSwitch.ico"))?.Stream
+            ?? throw new InvalidOperationException("The embedded EdgeSwitch icon is missing.");
+        trayIcon = new Icon(trayIconStream, Forms.SystemInformation.SmallIconSize);
+
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Show toolbar", null, (_, _) => Dispatcher.Invoke(toolbar.ShowFromTray));
         menu.Items.Add("Settings…", null, (_, _) => Dispatcher.Invoke(toolbar.OpenSettings));
@@ -47,7 +54,7 @@ public partial class App : Application
         menu.Items.Add("Exit EdgeSwitch", null, (_, _) => Dispatcher.Invoke(() => Shutdown()));
         tray = new Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = trayIcon,
             Text = "EdgeSwitch — hover at the screen edge",
             ContextMenuStrip = menu,
             Visible = true
@@ -68,6 +75,8 @@ public partial class App : Application
             tray.ContextMenuStrip?.Dispose();
             tray.Dispose();
         }
+        trayIcon?.Dispose();
+        trayIconStream?.Dispose();
         if (ownsMutex)
             instance?.ReleaseMutex();
         instance?.Dispose();

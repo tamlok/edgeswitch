@@ -8,7 +8,11 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <StartupObject>EdgeSwitch.Program</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/EdgeSwitch.ico</ApplicationIcon>
     <AssemblyName>EdgeSwitch</AssemblyName>
     <RootNamespace>EdgeSwitch</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets/EdgeSwitch.ico" />
+  </ItemGroup>
 </Project>
