@@ -1,0 +1,65 @@
+<Window x:Class="EdgeSwitch.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EdgeSwitch" WindowStyle="None" ResizeMode="NoResize"
+        ShowInTaskbar="False" ShowActivated="False" Topmost="True"
+        Width="310" Height="480" PreviewKeyDown="OnPreviewKeyDown"
+        Style="{StaticResource {x:Type Window}}"
+        AutomationProperties.Name="EdgeSwitch toolbar">
+  <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10">
+    <DockPanel x:Name="ToolbarLayout" LastChildFill="True">
+      <StackPanel x:Name="HeaderPanel" DockPanel.Dock="Top" Margin="0,0,0,10">
+        <TextBlock Text="EDGE SWITCH" Foreground="{StaticResource AccentBrush}"
+                   FontSize="11" FontWeight="Bold" Margin="2,0,0,4" />
+        <TextBlock x:Name="CountText" Text="Your local windows" FontSize="17" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+          <Button x:Name="SettingsButton" Content="_Settings" Click="OnSettingsClick"
+                  ToolTip="Choose applications, display and screen edge" Margin="0,0,6,0" />
+          <Button x:Name="HideButton" Content="_Hide" Click="OnHideClick"
+                  ToolTip="Hide until the next edge hover (Esc)" />
+        </StackPanel>
+      </StackPanel>
+      <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" TextWrapping="Wrap"
+                 Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="2,8,2,0"
+                 AutomationProperties.LiveSetting="Polite" />
+      <Grid>
+        <TextBlock x:Name="EmptyText" Text="No matching windows.&#x0a;&#x0a;Open a Remote Desktop session, or choose applications in Settings."
+                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                   Margin="6,12" VerticalAlignment="Center" MaxWidth="260" />
+        <ScrollViewer x:Name="WindowScroller" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+          <ItemsControl x:Name="WindowItems" AutomationProperties.Name="Captured windows">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="{Binding CardOrientation, RelativeSource={RelativeSource AncestorType=Window}}" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Click="OnWindowClick" Tag="{Binding}" Margin="0,0,6,6" Padding="11,10"
+                        Width="260" HorizontalAlignment="Left" HorizontalContentAlignment="Stretch"
+                        AutomationProperties.Name="{Binding Title}" ToolTip="{Binding ToolTip}">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                          <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                          <Setter Property="Background" Value="#20334D" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                  <StackPanel>
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" FontSize="11"
+                               Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </DockPanel>
+  </Border>
+</Window>

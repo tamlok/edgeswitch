@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+.smoke/
+artifacts/
+*.user
+*.suo
