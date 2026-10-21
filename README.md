@@ -1,5 +1,9 @@
 # EdgeSwitch
 
+<img src="Assets/EdgeSwitch.png" alt="EdgeSwitch icon" width="80" height="80">
+
+[![CI](https://github.com/tamlok/edgeswitch/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/tamlok/edgeswitch/actions/workflows/ci.yml)
+
 A Windows screen-edge toolbar for switching **local application windows**, particularly separate fullscreen Remote Desktop sessions. Built with C#/.NET 10, WPF, and Win32; no third-party packages.
 
 ![Illustrative EdgeSwitch toolbar with app icons and four Remote Desktop session labels](Assets/ToolbarPreview.png)
@@ -10,7 +14,9 @@ The application artwork is embedded from `Assets/EdgeSwitch.ico` for the executa
 
 ## Run
 
-Requires Windows 10/11 and the **.NET 10 Desktop Runtime**. To build from source, install the .NET 10 SDK, then run these commands from this directory:
+Download `EdgeSwitch.exe` from the **[latest release](https://github.com/tamlok/edgeswitch/releases/latest)**. Releases also include `SHA256SUMS.txt` for verification. The release executable is framework-dependent: the .NET runtime is not bundled.
+
+The prebuilt release requires Windows 10/11 x64 and the **.NET 10 Desktop Runtime (x64)**. To build from source, install the .NET 10 SDK, then run these commands from this directory:
 
 ```powershell
 dotnet build EdgeSwitch.csproj -c Release
@@ -77,6 +83,12 @@ dotnet publish EdgeSwitch.csproj -c Release -r win-x64 --self-contained false `
 ```
 
 Copy `artifacts/win-x64-framework-dependent/EdgeSwitch.exe` to the target PC, exit its older EdgeSwitch instance, and launch the replacement. The `.pdb` is optional debugging data; saved settings remain in the user's existing settings file.
+
+## CI and releases
+
+Windows CI runs on pushes to `master`, pull requests, and manual workflow runs. It restores and builds the app with the .NET 10 SDK, then runs the default `tests/ToolbarCaptureSmoke.ps1` checks. The desktop-wide `-ExerciseHostDesktop` option is intentionally not enabled in CI. `global.json` keeps SDK selection on the latest installed stable .NET 10 feature band.
+
+Pushing a stable version tag such as `v1.0.0` runs the same build/smoke checks, publishes the framework-dependent Windows x64 executable with that version, and creates a GitHub release containing `EdgeSwitch.exe` and `SHA256SUMS.txt`. The release is published only after the checksum is verified and both assets have been uploaded. Existing published releases are not overwritten.
 
 ## Verification
 

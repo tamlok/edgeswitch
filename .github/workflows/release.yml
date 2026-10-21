@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-and-package:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate release version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw 'Release tags must use vMAJOR.MINOR.PATCH, for example v1.0.0.'
+          }
+          "value=$($env:RELEASE_TAG.Substring(1))" >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore EdgeSwitch.csproj
+      - name: Build
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: dotnet build EdgeSwitch.csproj -c Release --no-restore "-p:Version=$env:RELEASE_VERSION" -p:ContinuousIntegrationBuild=true
+      - name: Run toolbar smoke checks
+        run: pwsh -NoProfile -STA -File tests/ToolbarCaptureSmoke.ps1
+      - name: Publish framework-dependent executable
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet publish EdgeSwitch.csproj -c Release -r win-x64 --self-contained false `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false `
+            "-p:Version=$env:RELEASE_VERSION" -p:ContinuousIntegrationBuild=true -o artifacts/publish
+          New-Item -ItemType Directory -Path artifacts/release -Force | Out-Null
+          Copy-Item -LiteralPath artifacts/publish/EdgeSwitch.exe -Destination artifacts/release/EdgeSwitch.exe
+          $hash = (Get-FileHash -LiteralPath artifacts/release/EdgeSwitch.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText('artifacts/release/SHA256SUMS.txt', "$hash *EdgeSwitch.exe`n", [Text.UTF8Encoding]::new($false))
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-x64-release
+          path: |
+            artifacts/release/EdgeSwitch.exe
+            artifacts/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-release:
+    needs: build-and-package
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-x64-release
+          path: artifacts/release
+      - name: Verify and publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $hash = (Get-FileHash -LiteralPath artifacts/release/EdgeSwitch.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = (Get-Content -LiteralPath artifacts/release/SHA256SUMS.txt -Raw).Trim()
+          if ($manifest -ne "$hash *EdgeSwitch.exe") { throw 'Release checksum does not match the executable.' }
+          @'
+          ## Windows x64 portable release
+
+          Download **EdgeSwitch.exe** and run it on the machine that owns the application windows you want to switch.
+
+          - Requires **Windows 10/11 x64** and the **[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)**.
+          - The .NET runtime is **not bundled**. No application installation is required.
+          - The executable is unsigned; Windows may display a reputation warning.
+          - **SHA256SUMS.txt** contains the executable's SHA-256 checksum.
+
+          ## Features
+
+          - Compact application icons and Remote Desktop session labels.
+          - Twelve screen-edge placements with hover activation limited to the toolbar's actual span.
+          - Left-click the EdgeSwitch icon for the host desktop; right-click it for Settings.
+          - Configurable captured executables, display selection, and hide delay.
+
+          The release workflow builds and runs local WPF/native-window smoke checks. Connected Remote Desktop sessions on another machine and physical mixed-DPI display setups have not been verified.
+          '@ | Set-Content -LiteralPath artifacts/release/notes.md -Encoding utf8
+          gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/SHA256SUMS.txt `
+            --verify-tag --draft --title "EdgeSwitch $env:RELEASE_TAG" --notes-file artifacts/release/notes.md
+          gh release edit $env:RELEASE_TAG --draft=false --latest
