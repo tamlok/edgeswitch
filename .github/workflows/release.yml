@@ -103,9 +103,15 @@ jobs:
           - Twelve screen-edge placements with hover activation limited to the toolbar's actual span.
           - Left-click the EdgeSwitch icon for the host desktop; right-click it for Settings.
           - Configurable captured executables, display selection, hide delay, and optional startup at Windows sign-in.
-          - New **Always make remote desktop session fullscreen** setting (off by default): clicking a desktop session in the toolbar requests fullscreen; already-fullscreen sessions stay unchanged.
+          - **Always make remote desktop session fullscreen** setting (off by default): clicking a desktop session in the toolbar requests fullscreen; already-fullscreen sessions stay unchanged.
 
-          The release workflow builds and runs local WPF/native-window smoke checks. Fullscreen shortcut delivery and connected Remote Desktop session transitions have not been verified; the local verification environment blocks foreground activation. Physical mixed-DPI display setups have not been verified.
+          ## Fixed
+
+          - Fullscreen requests now deliver Ctrl+Alt+Break (extended `VK_CANCEL`) instead of injecting Pause, which RDP does not treat as the fullscreen hotkey.
+
+          The release workflow builds and runs WPF/native-window smoke checks.
+          Local real Windows input checks verified fullscreen shortcut delivery and the existing input safeguards.
+          Connected Remote Desktop session transitions and physical mixed-DPI display setups have not been verified.
           '@ | Set-Content -LiteralPath artifacts/release/notes.md -Encoding utf8
           gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/SHA256SUMS.txt `
             --verify-tag --draft --title "EdgeSwitch $env:RELEASE_TAG" --notes-file artifacts/release/notes.md
