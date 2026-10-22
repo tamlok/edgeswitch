@@ -434,9 +434,9 @@ public partial class MainWindow : Window
             if (NativeMethods.GetForegroundWindow() == entry.Handle && !NativeMethods.IsIconic(entry.Handle))
             {
                 if (settings.AlwaysMakeRemoteDesktopSessionFullscreen && entry.IsRemoteDesktop &&
-                    !await catalog.TryMakeRemoteDesktopFullscreenAsync(entry))
+                    !await catalog.TryMaximizeRemoteDesktopSessionAsync(entry))
                 {
-                    ReportError("Could not make this session fullscreen. Release modifier keys and try again, or use Ctrl+Alt+Break in the session.");
+                    ReportError("Could not maximize this session. It may have closed, or Windows may have blocked the request.");
                     return;
                 }
 

@@ -41,7 +41,7 @@ The notification-area menu provides **Show toolbar**, **Settings**, and **Exit E
 - **Position:** choose from 12 centered or corner-aligned locations. **Top-left** is horizontal; **Left-top** is vertical.
 - **Display:** Automatic ignores seams between monitors. Select a specific display to allow its shared edges.
 - **Hide delay:** adjust how quickly the toolbar hides when idle.
-- **Always make remote desktop session fullscreen:** off by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests fullscreen using [Ctrl+Alt+Break (`VK_CANCEL`)](https://learn.microsoft.com/en-us/windows/win32/termserv/imsrdpclientadvancedsettings-hotkeyfullscreen), the Pause/Break key. Already-fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not toggled. This does not apply just by revealing the toolbar.
+- **Always maximize remote desktop sessions:** off by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests the same action as its title-bar Maximize button. The remote client controls whether maximizing enters fullscreen. Already-maximized or fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not resized. This does not apply just by revealing the toolbar. Existing saved fullscreen preferences carry over to this behavior.
 - **Startup:** enable **Start EdgeSwitch when I sign in** to launch automatically when you sign in to Windows. Off by default; applies only to your account and needs no administrator rights.
 
 Choose **Save** to apply your changes; **Cancel** leaves them unchanged. Toolbar settings are stored in `%LOCALAPPDATA%\EdgeSwitch\settings.json`. The startup preference uses the `EdgeSwitch` entry under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
@@ -54,7 +54,7 @@ If you move the portable executable, run it from the new location and choose **S
 - Each window gets its own entry. Multiple sessions kept as tabs inside one window appear as a single entry.
 - Hover over an entry to see its full window title.
 - EdgeSwitch is intended for regular app and Remote Desktop fullscreen windows. Windows lock/UAC screens and exclusive-fullscreen games can block the toolbar or window switching.
-- If Windows or the remote client refuses the fullscreen request, EdgeSwitch reports it rather than maximizing the window or repeatedly toggling. Release held modifier keys and click the session again, or use Ctrl+Alt+Break directly in the session.
+- EdgeSwitch maximizes sessions without injecting keyboard shortcuts or changing held modifier keys. A maximized window counts as success even if the remote client does not enter fullscreen. If the request fails, try the session's Maximize button directly.
 
 ## Build from source
 
@@ -65,8 +65,8 @@ dotnet build EdgeSwitch.csproj -c Release
 .\bin\Release\net10.0-windows\EdgeSwitch.exe
 ```
 
-Check fullscreen shortcut delivery and input guards on an idle interactive desktop using .NET 10 PowerShell. This uses disposable windows, not a connected RDP session:
+Check native maximize behavior and window guards on an idle interactive desktop using .NET 10 PowerShell. This uses disposable windows, not a connected RDP session:
 
 ```powershell
-pwsh -NoProfile -STA -File tests/FullscreenShortcutSmoke.ps1
+pwsh -NoProfile -STA -File tests/MaximizeWindowSmoke.ps1
 ```

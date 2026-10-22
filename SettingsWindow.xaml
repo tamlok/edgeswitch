@@ -240,11 +240,11 @@
                 <TextBlock Text="Remote Desktop" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <CheckBox x:Name="AlwaysMakeRemoteDesktopSessionFullscreenCheckBox"
                           Style="{StaticResource ProcessCheckBoxStyle}"
-                          AutomationProperties.Name="Always make remote desktop session fullscreen"
-                          AutomationProperties.HelpText="Make a windowed remote desktop session fullscreen when you click its toolbar entry. Already-fullscreen sessions are unchanged.">
-                    <TextBlock Text="Always make remote desktop session fullscreen" TextWrapping="Wrap" />
+                          AutomationProperties.Name="Always maximize remote desktop sessions"
+                          AutomationProperties.HelpText="Maximize a remote desktop session when you click its toolbar entry. Already-maximized or fullscreen sessions are unchanged. The remote client controls whether maximizing enters fullscreen.">
+                    <TextBlock Text="Always maximize remote desktop sessions" TextWrapping="Wrap" />
                 </CheckBox>
-                <TextBlock Text="Off by default. Applies when you click a session in the toolbar; sessions already fullscreen stay unchanged."
+                <TextBlock Text="Off by default. Maximizes the session when you click its entry. The remote client controls whether maximizing enters fullscreen."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,8" />
                 <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <CheckBox x:Name="StartWithWindowsCheckBox"

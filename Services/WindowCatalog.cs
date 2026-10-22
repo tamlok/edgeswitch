@@ -167,7 +167,7 @@ internal sealed class WindowCatalog
         return NativeMethods.GetForegroundWindow() == entry.Handle && HasWindowIdentity(entry);
     }
 
-    public async Task<bool> TryMakeRemoteDesktopFullscreenAsync(WindowEntry entry)
+    public async Task<bool> TryMaximizeRemoteDesktopSessionAsync(WindowEntry entry)
     {
         if (!entry.IsRemoteDesktop)
             return true;
@@ -187,18 +187,18 @@ internal sealed class WindowCatalog
         if (!StringComparer.OrdinalIgnoreCase.Equals(processName, entry.ProcessName) ||
             !HasWindowIdentity(entry))
             return false;
-        if (NativeMethods.IsFullscreen(entry.Handle))
+        if (NativeMethods.IsZoomed(entry.Handle) || NativeMethods.IsFullscreen(entry.Handle))
             return true;
-        if (!NativeMethods.TrySendFullscreenShortcut(entry.Handle, (uint)entry.ProcessId))
+        if (!NativeMethods.TryMaximizeWindow(entry.Handle, (uint)entry.ProcessId))
             return false;
 
-        // The shortcut toggles: observe the transition, never send it a second time.
+        // Observe the client's response to one maximize request without posting it again.
         for (int attempt = 0; attempt < 10; attempt++)
         {
             await Task.Delay(50);
             if (!HasWindowIdentity(entry))
                 return false;
-            if (NativeMethods.IsFullscreen(entry.Handle))
+            if (NativeMethods.IsZoomed(entry.Handle) || NativeMethods.IsFullscreen(entry.Handle))
                 return true;
             if (NativeMethods.GetForegroundWindow() != entry.Handle)
                 return false;

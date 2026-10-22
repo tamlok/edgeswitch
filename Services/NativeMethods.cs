@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -214,92 +213,16 @@ internal static class NativeMethods
             bounds.Right >= monitor.Monitor.Right - 1 && bounds.Bottom >= monitor.Monitor.Bottom - 1;
     }
 
-    internal static bool TrySendFullscreenShortcut(nint hwnd, uint expectedProcessId)
+    internal static bool TryMaximizeWindow(nint hwnd, uint expectedProcessId)
     {
-        // Never release physical modifiers or send the chord to a different foreground app.
-        if (GetAsyncKeyState(0x10) < 0 || GetAsyncKeyState(0x11) < 0 || GetAsyncKeyState(0x12) < 0 ||
-            GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0)
-            return false;
-
-        KeyboardInputBuffer inputs = default;
-        inputs[0] = KeyboardEvent(0x11, false); // Ctrl
-        inputs[1] = KeyboardEvent(0x12, false); // Alt
-        // Ctrl+Pause on a physical keyboard produces extended VK_CANCEL (Break).
-        // Injecting VK_PAUSE directly does not perform that translation for RDP.
-        inputs[2] = KeyboardEvent(0x03, false, extended: true);
-        inputs[3] = KeyboardEvent(0x03, true, extended: true);
-        inputs[4] = KeyboardEvent(0x12, true);
-        inputs[5] = KeyboardEvent(0x11, true);
-
-        if (IsFullscreen(hwnd))
-            return true;
         if (IsIconic(hwnd) || GetWindowThreadProcessId(hwnd, out uint processId) == 0 ||
             processId != expectedProcessId || GetForegroundWindow() != hwnd)
             return false;
-
-        uint sent = SendInput(6, ref inputs[0], Marshal.SizeOf<NativeInput>());
-        if (sent == 6)
+        if (IsZoomed(hwnd) || IsFullscreen(hwnd))
             return true;
-        if (sent != 0)
-        {
-            inputs[0] = KeyboardEvent(0x03, true, extended: true);
-            inputs[1] = KeyboardEvent(0x12, true);
-            inputs[2] = KeyboardEvent(0x11, true);
-            SendInput(3, ref inputs[0], Marshal.SizeOf<NativeInput>());
-        }
 
-        return false;
-    }
-
-    private static NativeInput KeyboardEvent(ushort key, bool released, bool extended = false) => new()
-    {
-        Type = 1,
-        Data = new InputData { Keyboard = new KeyboardInput
-        {
-            VirtualKey = key,
-            Flags = (released ? 2u : 0u) | (extended ? 1u : 0u)
-        } }
-    };
-
-    [InlineArray(6)]
-    private struct KeyboardInputBuffer
-    {
-        private NativeInput element;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeInput
-    {
-        public uint Type;
-        public InputData Data;
-    }
-
-    [StructLayout(LayoutKind.Explicit)]
-    private struct InputData
-    {
-        [FieldOffset(0)] public KeyboardInput Keyboard;
-        [FieldOffset(0)] public MouseInput Mouse;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KeyboardInput
-    {
-        public ushort VirtualKey;
-        public ushort ScanCode;
-        public uint Flags;
-        public uint Time;
-        public nuint ExtraInfo;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MouseInput
-    {
-        public int X;
-        public int Y;
-        public uint MouseData;
-        public uint Flags;
-        public uint Time;
-        public nuint ExtraInfo;
+        // Use the titlebar action so the remote client can handle fullscreen-on-maximize.
+        return PostMessage(hwnd, 0x0112, new nint(0xF030), nint.Zero); // WM_SYSCOMMAND, SC_MAXIMIZE
     }
 
     internal static string? GetProcessName(uint processId, StringBuilder imagePath)
@@ -370,10 +293,12 @@ internal static class NativeMethods
     private static extern nint MonitorFromWindow(nint hwnd, uint flags);
 
     [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int virtualKey);
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsZoomed(nint hwnd);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint count, ref NativeInput inputs, int size);
+    [DllImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
     private static extern nint SendMessageTimeout(nint hwnd, uint message, nint wParam, nint lParam,
