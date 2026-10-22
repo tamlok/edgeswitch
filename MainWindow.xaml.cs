@@ -436,7 +436,7 @@ public partial class MainWindow : Window
                 if (settings.AlwaysMakeRemoteDesktopSessionFullscreen && entry.IsRemoteDesktop &&
                     !await catalog.TryMakeRemoteDesktopFullscreenAsync(entry))
                 {
-                    ReportError("Could not make this session fullscreen. Release modifier keys and try again, or use Ctrl+Alt+Pause in the session.");
+                    ReportError("Could not make this session fullscreen. Release modifier keys and try again, or use Ctrl+Alt+Break in the session.");
                     return;
                 }
 

@@ -224,8 +224,10 @@ internal static class NativeMethods
         KeyboardInputBuffer inputs = default;
         inputs[0] = KeyboardEvent(0x11, false); // Ctrl
         inputs[1] = KeyboardEvent(0x12, false); // Alt
-        inputs[2] = KeyboardEvent(0x13, false); // Pause
-        inputs[3] = KeyboardEvent(0x13, true);
+        // Ctrl+Pause on a physical keyboard produces extended VK_CANCEL (Break).
+        // Injecting VK_PAUSE directly does not perform that translation for RDP.
+        inputs[2] = KeyboardEvent(0x03, false, extended: true);
+        inputs[3] = KeyboardEvent(0x03, true, extended: true);
         inputs[4] = KeyboardEvent(0x12, true);
         inputs[5] = KeyboardEvent(0x11, true);
 
@@ -240,7 +242,7 @@ internal static class NativeMethods
             return true;
         if (sent != 0)
         {
-            inputs[0] = KeyboardEvent(0x13, true);
+            inputs[0] = KeyboardEvent(0x03, true, extended: true);
             inputs[1] = KeyboardEvent(0x12, true);
             inputs[2] = KeyboardEvent(0x11, true);
             SendInput(3, ref inputs[0], Marshal.SizeOf<NativeInput>());
@@ -249,10 +251,14 @@ internal static class NativeMethods
         return false;
     }
 
-    private static NativeInput KeyboardEvent(ushort key, bool released) => new()
+    private static NativeInput KeyboardEvent(ushort key, bool released, bool extended = false) => new()
     {
         Type = 1,
-        Data = new InputData { Keyboard = new KeyboardInput { VirtualKey = key, Flags = released ? 2u : 0u } }
+        Data = new InputData { Keyboard = new KeyboardInput
+        {
+            VirtualKey = key,
+            Flags = (released ? 2u : 0u) | (extended ? 1u : 0u)
+        } }
     };
 
     [InlineArray(6)]
