@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace EdgeSwitch;
 
@@ -164,6 +165,46 @@ internal sealed class WindowCatalog
 
         NativeMethods.SetForegroundWindow(entry.Handle);
         return NativeMethods.GetForegroundWindow() == entry.Handle && HasWindowIdentity(entry);
+    }
+
+    public async Task<bool> TryMakeRemoteDesktopFullscreenAsync(WindowEntry entry)
+    {
+        if (!entry.IsRemoteDesktop)
+            return true;
+        if (!HasWindowIdentity(entry) || NativeMethods.GetForegroundWindow() != entry.Handle ||
+            NativeMethods.IsIconic(entry.Handle))
+            return false;
+
+        StringBuilder buffer = new(512);
+        if (NativeMethods.GetClassName(entry.Handle, buffer, buffer.Capacity) == 0)
+            return false;
+        // Only the desktop-session shell, not connection dialogs, workspaces or RemoteApps.
+        // Class names do not depend on the user's display language or session title.
+        if (!string.Equals(buffer.ToString(), "TscShellContainerClass", StringComparison.Ordinal))
+            return true;
+
+        string? processName = NativeMethods.GetProcessName((uint)entry.ProcessId, buffer);
+        if (!StringComparer.OrdinalIgnoreCase.Equals(processName, entry.ProcessName) ||
+            !HasWindowIdentity(entry))
+            return false;
+        if (NativeMethods.IsFullscreen(entry.Handle))
+            return true;
+        if (!NativeMethods.TrySendFullscreenShortcut(entry.Handle, (uint)entry.ProcessId))
+            return false;
+
+        // The shortcut toggles: observe the transition, never send it a second time.
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            await Task.Delay(50);
+            if (!HasWindowIdentity(entry))
+                return false;
+            if (NativeMethods.IsFullscreen(entry.Handle))
+                return true;
+            if (NativeMethods.GetForegroundWindow() != entry.Handle)
+                return false;
+        }
+
+        return false;
     }
 
     private static bool HasWindowIdentity(WindowEntry entry) =>

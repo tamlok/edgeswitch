@@ -31,7 +31,8 @@ public partial class SettingsWindow : Window
             Edge = current.Edge,
             MonitorDeviceName = current.MonitorDeviceName,
             CapturedProcesses = new List<string>(current.CapturedProcesses),
-            HideDelayMilliseconds = current.HideDelayMilliseconds
+            HideDelayMilliseconds = current.HideDelayMilliseconds,
+            AlwaysMakeRemoteDesktopSessionFullscreen = current.AlwaysMakeRemoteDesktopSessionFullscreen
         };
 
         InitializeComponent();
@@ -62,6 +63,7 @@ public partial class SettingsWindow : Window
         };
         EdgePicker.SelectedValue = workingCopy.Edge;
         HideDelayInput.Text = workingCopy.HideDelayMilliseconds.ToString(CultureInfo.CurrentCulture);
+        AlwaysMakeRemoteDesktopSessionFullscreenCheckBox.IsChecked = workingCopy.AlwaysMakeRemoteDesktopSessionFullscreen;
         PopulateProcesses();
         PopulateMonitors();
         try
@@ -291,6 +293,7 @@ public partial class SettingsWindow : Window
         workingCopy.Edge = edge;
         workingCopy.MonitorDeviceName = monitor.DeviceName;
         workingCopy.HideDelayMilliseconds = delay;
+        workingCopy.AlwaysMakeRemoteDesktopSessionFullscreen = AlwaysMakeRemoteDesktopSessionFullscreenCheckBox.IsChecked == true;
         workingCopy.CapturedProcesses.Clear();
         foreach (ProcessChoice choice in processChoices)
         {

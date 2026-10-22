@@ -41,6 +41,8 @@ internal sealed class ToolbarSettings
 
     public int HideDelayMilliseconds { get; set; } = 700;
 
+    public bool AlwaysMakeRemoteDesktopSessionFullscreen { get; set; }
+
     internal static string NormalizeProcessName(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

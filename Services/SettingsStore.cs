@@ -231,6 +231,16 @@ internal static class SettingsStore
             settings.HideDelayMilliseconds = milliseconds;
         }
 
+        if (root.TryGetProperty(nameof(ToolbarSettings.AlwaysMakeRemoteDesktopSessionFullscreen), out JsonElement fullscreen))
+        {
+            if (fullscreen.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                throw new InvalidDataException("AlwaysMakeRemoteDesktopSessionFullscreen must be true or false.");
+            }
+
+            settings.AlwaysMakeRemoteDesktopSessionFullscreen = fullscreen.GetBoolean();
+        }
+
         return NormalizeSettings(settings);
     }
 
@@ -277,7 +287,8 @@ internal static class SettingsStore
             Edge = settings.Edge,
             MonitorDeviceName = settings.MonitorDeviceName.Trim(),
             CapturedProcesses = names,
-            HideDelayMilliseconds = settings.HideDelayMilliseconds
+            HideDelayMilliseconds = settings.HideDelayMilliseconds,
+            AlwaysMakeRemoteDesktopSessionFullscreen = settings.AlwaysMakeRemoteDesktopSessionFullscreen
         };
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -66,6 +67,15 @@ internal static class NativeMethods
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private delegate bool MonitorEnumCallback(nint monitor, nint hdc, ref NativeRect bounds, nint parameter);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public uint Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+    }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct MonitorInfoEx
@@ -188,6 +198,104 @@ internal static class NativeMethods
         }
     }
 
+    internal static bool IsFullscreen(nint hwnd)
+    {
+        const int captionOrSizingFrame = 0x00C00000 | 0x00040000;
+        if (IsIconic(hwnd) || (GetWindowLong(hwnd, -16) & captionOrSizingFrame) != 0 ||
+            !GetWindowRect(hwnd, out NativeRect bounds))
+            return false;
+
+        MonitorInfo monitor = new() { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(MonitorFromWindow(hwnd, 2), ref monitor))
+            return false;
+
+        // Physical monitor bounds, not the work area. Permit spanning and 1px DPI rounding.
+        return bounds.Left <= monitor.Monitor.Left + 1 && bounds.Top <= monitor.Monitor.Top + 1 &&
+            bounds.Right >= monitor.Monitor.Right - 1 && bounds.Bottom >= monitor.Monitor.Bottom - 1;
+    }
+
+    internal static bool TrySendFullscreenShortcut(nint hwnd, uint expectedProcessId)
+    {
+        // Never release physical modifiers or send the chord to a different foreground app.
+        if (GetAsyncKeyState(0x10) < 0 || GetAsyncKeyState(0x11) < 0 || GetAsyncKeyState(0x12) < 0 ||
+            GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0)
+            return false;
+
+        KeyboardInputBuffer inputs = default;
+        inputs[0] = KeyboardEvent(0x11, false); // Ctrl
+        inputs[1] = KeyboardEvent(0x12, false); // Alt
+        inputs[2] = KeyboardEvent(0x13, false); // Pause
+        inputs[3] = KeyboardEvent(0x13, true);
+        inputs[4] = KeyboardEvent(0x12, true);
+        inputs[5] = KeyboardEvent(0x11, true);
+
+        if (IsFullscreen(hwnd))
+            return true;
+        if (IsIconic(hwnd) || GetWindowThreadProcessId(hwnd, out uint processId) == 0 ||
+            processId != expectedProcessId || GetForegroundWindow() != hwnd)
+            return false;
+
+        uint sent = SendInput(6, ref inputs[0], Marshal.SizeOf<NativeInput>());
+        if (sent == 6)
+            return true;
+        if (sent != 0)
+        {
+            inputs[0] = KeyboardEvent(0x13, true);
+            inputs[1] = KeyboardEvent(0x12, true);
+            inputs[2] = KeyboardEvent(0x11, true);
+            SendInput(3, ref inputs[0], Marshal.SizeOf<NativeInput>());
+        }
+
+        return false;
+    }
+
+    private static NativeInput KeyboardEvent(ushort key, bool released) => new()
+    {
+        Type = 1,
+        Data = new InputData { Keyboard = new KeyboardInput { VirtualKey = key, Flags = released ? 2u : 0u } }
+    };
+
+    [InlineArray(6)]
+    private struct KeyboardInputBuffer
+    {
+        private NativeInput element;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeInput
+    {
+        public uint Type;
+        public InputData Data;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputData
+    {
+        [FieldOffset(0)] public KeyboardInput Keyboard;
+        [FieldOffset(0)] public MouseInput Mouse;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KeyboardInput
+    {
+        public ushort VirtualKey;
+        public ushort ScanCode;
+        public uint Flags;
+        public uint Time;
+        public nuint ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int X;
+        public int Y;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public nuint ExtraInfo;
+    }
+
     internal static string? GetProcessName(uint processId, StringBuilder imagePath)
     {
         using SafeProcessHandle process = OpenProcess(ProcessQueryLimitedInformation, false, processId);
@@ -244,6 +352,22 @@ internal static class NativeMethods
     private static nint GetClassIcon(nint hwnd, int index) => nint.Size == 8
         ? GetClassLongPtr(hwnd, index)
         : new nint(unchecked((int)GetClassLong(hwnd, index)));
+
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)]
+    internal static extern int GetClassName(nint hwnd, StringBuilder className, int maximumCount);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+
+    [DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint count, ref NativeInput inputs, int size);
 
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
     private static extern nint SendMessageTimeout(nint hwnd, uint message, nint wParam, nint lParam,

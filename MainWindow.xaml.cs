@@ -432,7 +432,16 @@ public partial class MainWindow : Window
             if (!accepted || NativeMethods.IsIconic(entry.Handle))
                 await Task.Delay(150);
             if (NativeMethods.GetForegroundWindow() == entry.Handle && !NativeMethods.IsIconic(entry.Handle))
+            {
+                if (settings.AlwaysMakeRemoteDesktopSessionFullscreen && entry.IsRemoteDesktop &&
+                    !await catalog.TryMakeRemoteDesktopFullscreenAsync(entry))
+                {
+                    ReportError("Could not make this session fullscreen. Release modifier keys and try again, or use Ctrl+Alt+Pause in the session.");
+                    return;
+                }
+
                 Conceal();
+            }
             else
             {
                 RefreshWindows();
