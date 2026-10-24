@@ -37,11 +37,11 @@ internal sealed class ToolbarSettings
 
     public string MonitorDeviceName { get; set; } = "";
 
-    public List<string> CapturedProcesses { get; set; } = new() { "mstsc" };
+    public List<string> CapturedProcesses { get; set; } = new() { "mstsc", "msrdc" };
 
     public int HideDelayMilliseconds { get; set; } = 700;
 
-    public bool AlwaysMakeRemoteDesktopSessionFullscreen { get; set; }
+    public bool AlwaysMakeRemoteDesktopSessionFullscreen { get; set; } = true;
 
     internal static string NormalizeProcessName(string? value)
     {

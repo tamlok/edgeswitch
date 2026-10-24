@@ -103,14 +103,17 @@ jobs:
           - Twelve screen-edge placements with hover activation limited to the toolbar's actual span.
           - Left-click the EdgeSwitch icon for the host desktop; right-click it for Settings.
           - Configurable captured executables, display selection, hide delay, and optional startup at Windows sign-in.
-          - **Always maximize remote desktop sessions** setting (off by default): clicking a desktop session requests its title-bar Maximize action. The client controls whether this enters fullscreen; already-maximized or fullscreen sessions stay unchanged. Existing saved fullscreen preferences are retained.
+          - **Always maximize remote desktop sessions** setting (on by default): clicking a desktop session requests its title-bar Maximize action. The client controls whether this enters fullscreen; already-maximized or fullscreen sessions stay unchanged.
 
-          ## Fixed
+          ## Changed
 
-          - Remote Desktop activation now uses a native maximize request instead of injecting a fullscreen shortcut. Maximized windows count as success even when the client does not enter fullscreen; held modifier keys are left untouched.
+          - Both `mstsc.exe` and `msrdc.exe` are now selected by default and remain listed in Settings even when not running.
+          - Maximize-on-activate is now enabled by default.
+
+          These defaults apply to new settings and omitted fields. Existing saved capture lists (including an empty list) and an explicit maximize-off setting remain unchanged.
 
           The release workflow builds and runs WPF/native-window smoke checks.
-          Local real-window checks verified maximize transitions, already-maximized/fullscreen behavior, and window/modifier safeguards.
+          Local Settings-window checks verified both defaults and preservation of saved choices.
           Connected Remote Desktop session transitions and physical mixed-DPI display setups have not been verified.
           '@ | Set-Content -LiteralPath artifacts/release/notes.md -Encoding utf8
           gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/SHA256SUMS.txt `

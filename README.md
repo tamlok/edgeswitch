@@ -20,7 +20,7 @@ Run `EdgeSwitch.exe`—there is no app installer. The executable is unsigned, so
 
 ## Use
 
-Run EdgeSwitch on the computer where your Remote Desktop client windows are open. By default, it appears on the left edge and includes Remote Desktop Connection (`mstsc.exe`).
+Run EdgeSwitch on the computer where your Remote Desktop client windows are open. By default, it appears on the left edge and includes Remote Desktop Connection (`mstsc.exe`) and Remote Desktop (`msrdc.exe`).
 
 Rest the pointer against the part of the screen edge where the toolbar appears. It opens after a short pause; the rest of the edge does not trigger it.
 
@@ -37,11 +37,11 @@ The notification-area menu provides **Show toolbar**, **Settings**, and **Exit E
 
 ## Settings
 
-- **Apps:** select which applications to include, or use **Add / Browse** for others such as `msrdc.exe`. “Capture” selects windows; it does not record your screen.
+- **Apps:** select which applications to include, or use **Add / Browse** for other executables. Both Remote Desktop clients are listed even when they are not running. “Capture” selects windows; it does not record your screen.
 - **Position:** choose from 12 centered or corner-aligned locations. **Top-left** is horizontal; **Left-top** is vertical.
 - **Display:** Automatic ignores seams between monitors. Select a specific display to allow its shared edges.
 - **Hide delay:** adjust how quickly the toolbar hides when idle.
-- **Always maximize remote desktop sessions:** off by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests the same action as its title-bar Maximize button. The remote client controls whether maximizing enters fullscreen. Already-maximized or fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not resized. This does not apply just by revealing the toolbar. Existing saved fullscreen preferences carry over to this behavior.
+- **Always maximize remote desktop sessions:** on by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests the same action as its title-bar Maximize button. The remote client controls whether maximizing enters fullscreen. Already-maximized or fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not resized. This does not apply just by revealing the toolbar. Saved app selections and explicit maximize-off settings remain unchanged.
 - **Startup:** enable **Start EdgeSwitch when I sign in** to launch automatically when you sign in to Windows. Off by default; applies only to your account and needs no administrator rights.
 
 Choose **Save** to apply your changes; **Cancel** leaves them unchanged. Toolbar settings are stored in `%LOCALAPPDATA%\EdgeSwitch\settings.json`. The startup preference uses the `EdgeSwitch` entry under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.

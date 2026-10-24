@@ -244,7 +244,7 @@
                           AutomationProperties.HelpText="Maximize a remote desktop session when you click its toolbar entry. Already-maximized or fullscreen sessions are unchanged. The remote client controls whether maximizing enters fullscreen.">
                     <TextBlock Text="Always maximize remote desktop sessions" TextWrapping="Wrap" />
                 </CheckBox>
-                <TextBlock Text="Off by default. Maximizes the session when you click its entry. The remote client controls whether maximizing enters fullscreen."
+                <TextBlock Text="On by default. Maximizes the session when you click its entry. The remote client controls whether maximizing enters fullscreen."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,8" />
                 <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <CheckBox x:Name="StartWithWindowsCheckBox"

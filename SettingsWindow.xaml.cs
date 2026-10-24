@@ -90,8 +90,9 @@ public partial class SettingsWindow : Window
             windowCounts.TryAdd(name, 0);
         }
 
-        // Keep the main use case available even when Remote Desktop is not running.
+        // Keep both Remote Desktop clients available even when they are not running.
         windowCounts.TryAdd("mstsc", 0);
+        windowCounts.TryAdd("msrdc", 0);
         try
         {
             foreach (WindowEntry window in new WindowCatalog().GetWindows(null))
