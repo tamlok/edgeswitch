@@ -41,12 +41,38 @@ The notification-area menu provides **Show toolbar**, **Settings**, and **Exit E
 - **Position:** choose from 12 centered or corner-aligned locations. **Top-left** is horizontal; **Left-top** is vertical.
 - **Display:** Automatic ignores seams between monitors. Select a specific display to allow its shared edges.
 - **Hide delay:** adjust how quickly the toolbar hides when idle.
-- **Always maximize remote desktop sessions:** on by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests the same action as its title-bar Maximize button. The remote client controls whether maximizing enters fullscreen. Already-maximized or fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not resized. This does not apply just by revealing the toolbar. Saved app selections and explicit maximize-off settings remain unchanged.
+- **Always maximize remote desktop sessions:** on by default. When enabled, clicking a desktop-session entry for `mstsc.exe` or `msrdc.exe` requests the same action as its title-bar Maximize button. The remote client controls whether maximizing enters fullscreen. Already-maximized or fullscreen sessions stay unchanged; ordinary apps, connection dialogs, and RemoteApps are not resized. This does not apply just by revealing the toolbar. Explicit maximize-off and app selections in the INI are respected.
 - **Startup:** enable **Start EdgeSwitch when I sign in** to launch automatically when you sign in to Windows. Off by default; applies only to your account and needs no administrator rights.
 
-Choose **Save** to apply your changes; **Cancel** leaves them unchanged. Toolbar settings are stored in `%LOCALAPPDATA%\EdgeSwitch\settings.json`. The startup preference uses the `EdgeSwitch` entry under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+Choose **Save** to apply your changes; **Cancel** leaves them unchanged. Toolbar settings are stored in `settings.ini` alongside `EdgeSwitch.exe`. The startup preference uses the `EdgeSwitch` entry under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
 
 If you move the portable executable, run it from the new location and choose **Save** with startup enabled to update its path. Disable startup and save before deleting the executable. Windows **Startup Apps** can independently block automatic launch; if disabled there, re-enable EdgeSwitch there as well.
+
+### Portable settings file
+
+`settings.ini` is created when you choose **Save**, not on first launch. Keep it beside `EdgeSwitch.exe` when moving or copying the app. The executable's folder must be writable; save failures are reported rather than falling back to a user-profile folder. The launch working directory does not affect the settings path.
+
+```ini
+[Toolbar]
+Edge=Left
+MonitorDeviceName=
+HideDelayMilliseconds=700
+MaximizeOnActivate=true
+
+[CapturedProcesses]
+0=mstsc
+1=msrdc
+```
+
+- `Edge` uses the location names `Left`, `Top`, `Right`, `Bottom`, `LeftTop`, `LeftBottom`, `TopLeft`, `TopRight`, `RightTop`, `RightBottom`, `BottomLeft`, or `BottomRight`.
+- An empty `MonitorDeviceName` means Automatic. The Settings dialog writes the selected display's device name.
+- `HideDelayMilliseconds` accepts integers from 200 to 5000; `MaximizeOnActivate` accepts `true` or `false`.
+- `[CapturedProcesses]` uses unique nonnegative integer keys, read in numeric order, with one executable name or path per value. An empty section captures nothing; an absent section uses the default clients. Missing toolbar keys also use defaults.
+- The file is UTF-8. Section/key names are case-insensitive; surrounding whitespace and full-line `;` or `#` comments are accepted. Values have no inline comments, so commas, semicolons, and `=` in executable names are preserved. Unknown sections/toolbar keys are ignored; duplicate keys and invalid supported values are rejected.
+
+Edit the INI while EdgeSwitch is closed. Invalid or unreadable files produce a warning and defaults without overwriting the file. Choosing **Save** rewrites supported settings; comments and unknown entries are not preserved.
+
+The former `%LOCALAPPDATA%\EdgeSwitch\settings.json` is no longer read or imported and is left untouched. Reapply previous preferences in Settings and choose **Save** to create the portable INI. Windows startup registration remains per-user in the registry, not in this file.
 
 ## Good to know
 
@@ -69,4 +95,10 @@ Check native maximize behavior and window guards on an idle interactive desktop 
 
 ```powershell
 pwsh -NoProfile -STA -File tests/MaximizeWindowSmoke.ps1
+```
+
+Check INI parsing, executable-relative storage, and save/startup rollback in isolated file and registry locations:
+
+```powershell
+pwsh -NoProfile -File tests/SettingsStoreSmoke.ps1
 ```

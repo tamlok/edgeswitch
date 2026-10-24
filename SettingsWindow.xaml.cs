@@ -6,7 +6,6 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
@@ -310,9 +309,9 @@ public partial class SettingsWindow : Window
         }
         catch (Exception exception) when (exception is IOException
             or UnauthorizedAccessException or SecurityException or ArgumentException
-            or InvalidDataException or JsonException or NotSupportedException)
+            or InvalidDataException or NotSupportedException)
         {
-            ShowError("Could not save settings. Check that %LOCALAPPDATA%\\EdgeSwitch is writable "
+            ShowError("Could not save settings.ini. Check that the folder containing EdgeSwitch.exe is writable "
                 + $"and Windows startup preferences are accessible. {exception.Message}");
             return;
         }

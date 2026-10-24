@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text;
 using Microsoft.Win32;
 
 namespace EdgeSwitch;
@@ -12,21 +12,15 @@ internal static class SettingsStore
 {
     private const string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupValueName = "EdgeSwitch";
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter<ToolbarEdge>() }
-    };
 
     public static ToolbarSettings Load(out string? warning)
     {
         warning = null;
-        string path = "%LOCALAPPDATA%\\EdgeSwitch\\settings.json";
+        string path = "settings.ini";
         try
         {
             path = GetSettingsPath();
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-            return ReadSettings(document.RootElement);
+            return ReadSettings(File.ReadAllText(path));
         }
         catch (FileNotFoundException)
         {
@@ -37,7 +31,7 @@ internal static class SettingsStore
             return new ToolbarSettings();
         }
         catch (Exception exception) when (exception is IOException
-            or InvalidDataException or UnauthorizedAccessException or SecurityException or JsonException or ArgumentException)
+            or InvalidDataException or UnauthorizedAccessException or SecurityException or ArgumentException)
         {
             warning = $"Could not load settings from \"{path}\". {exception.Message} "
                 + "Default settings are being used. The existing settings file was not overwritten.";
@@ -55,14 +49,14 @@ internal static class SettingsStore
     {
         ArgumentNullException.ThrowIfNull(settings);
         ToolbarSettings normalized = NormalizeSettings(settings);
-        string json = JsonSerializer.Serialize(normalized, SerializerOptions);
+        string ini = WriteSettings(normalized);
         string path = GetSettingsPath();
         string directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         string temporaryPath = Path.Combine(directory, $"settings.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllText(temporaryPath, json);
+            File.WriteAllText(temporaryPath, ini);
             string? command = startWithWindows ? GetStartupCommand() : null;
             using RegistryKey? startupKey = Registry.CurrentUser.OpenSubKey(StartupKeyPath);
             object? previousValue = startupKey?.GetValue(StartupValueName, null,
@@ -146,102 +140,100 @@ internal static class SettingsStore
         return command;
     }
 
-    private static string GetSettingsPath()
-    {
-        string localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localApplicationData))
-        {
-            throw new IOException("The Windows local application data folder is unavailable. Check your user profile.");
-        }
+    private static string GetSettingsPath() => Path.Combine(AppContext.BaseDirectory, "settings.ini");
 
-        return Path.Combine(localApplicationData, "EdgeSwitch", "settings.json");
-    }
-
-    private static ToolbarSettings ReadSettings(JsonElement root)
+    private static ToolbarSettings ReadSettings(string text)
     {
-        if (root.ValueKind != JsonValueKind.Object)
+        Dictionary<string, string> toolbar = new(StringComparer.OrdinalIgnoreCase);
+        SortedDictionary<int, string>? processes = null;
+        string section = "";
+        using StringReader reader = new(text);
+        int lineNumber = 0;
+        while (reader.ReadLine() is string rawLine)
         {
-            throw new InvalidDataException("The settings JSON must contain an object.");
+            lineNumber++;
+            ReadOnlySpan<char> line = rawLine.AsSpan().Trim();
+            if (line.IsEmpty || line[0] is ';' or '#')
+                continue;
+            if (line[0] == '[')
+            {
+                if (line[^1] != ']' || line[1..^1].Trim().IsEmpty)
+                    throw new InvalidDataException($"Invalid INI section on line {lineNumber}.");
+                section = line[1..^1].Trim().ToString();
+                if (section.Equals("CapturedProcesses", StringComparison.OrdinalIgnoreCase))
+                    processes ??= new SortedDictionary<int, string>();
+                continue;
+            }
+
+            int separator = line.IndexOf('=');
+            if (separator <= 0)
+                throw new InvalidDataException($"Invalid INI entry on line {lineNumber}; expected key=value.");
+            bool isToolbar = section.Equals("Toolbar", StringComparison.OrdinalIgnoreCase);
+            if (!isToolbar && !section.Equals("CapturedProcesses", StringComparison.OrdinalIgnoreCase))
+                continue;
+            string key = line[..separator].Trim().ToString();
+            string value = line[(separator + 1)..].Trim().ToString();
+            if (isToolbar)
+            {
+                if (!toolbar.TryAdd(key, value))
+                    throw new InvalidDataException($"Duplicate Toolbar key on line {lineNumber}: {key}.");
+            }
+            else if (!int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+                || !processes!.TryAdd(index, value))
+            {
+                throw new InvalidDataException($"CapturedProcesses needs unique nonnegative integer keys (line {lineNumber}).");
+            }
         }
 
         ToolbarSettings settings = new();
-        if (root.TryGetProperty(nameof(ToolbarSettings.Edge), out JsonElement edge))
+        if (toolbar.TryGetValue("Edge", out string? edge))
         {
-            if (edge.ValueKind == JsonValueKind.String)
+            if (!Enum.TryParse(edge, ignoreCase: true, out ToolbarEdge parsed)
+                || !Enum.IsDefined(parsed)
+                || !string.Equals(edge, parsed.ToString(), StringComparison.OrdinalIgnoreCase))
             {
-                string? name = edge.GetString();
-                if (!Enum.TryParse(name, ignoreCase: true, out ToolbarEdge parsed)
-                    || !Enum.IsDefined(parsed)
-                    || !string.Equals(name, parsed.ToString(), StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidDataException("Edge must be a supported toolbar location.");
-                }
-
-                settings.Edge = parsed;
+                throw new InvalidDataException("Edge must be a supported toolbar location name.");
             }
-            else if (edge.ValueKind == JsonValueKind.Number && edge.TryGetInt32(out int value)
-                && Enum.IsDefined((ToolbarEdge)value))
-            {
-                settings.Edge = (ToolbarEdge)value;
-            }
-            else
-            {
-                throw new InvalidDataException("Edge must be a supported toolbar location.");
-            }
+            settings.Edge = parsed;
         }
-
-        if (root.TryGetProperty(nameof(ToolbarSettings.MonitorDeviceName), out JsonElement monitor))
+        if (toolbar.TryGetValue("MonitorDeviceName", out string? monitor))
+            settings.MonitorDeviceName = monitor;
+        if (toolbar.TryGetValue("HideDelayMilliseconds", out string? delay))
         {
-            if (monitor.ValueKind != JsonValueKind.String)
-            {
-                throw new InvalidDataException("MonitorDeviceName must be a display name or an empty string for Automatic.");
-            }
-
-            settings.MonitorDeviceName = monitor.GetString()!;
-        }
-
-        if (root.TryGetProperty(nameof(ToolbarSettings.CapturedProcesses), out JsonElement processes))
-        {
-            if (processes.ValueKind != JsonValueKind.Array)
-            {
-                throw new InvalidDataException("CapturedProcesses must be an array of executable names; an empty array captures nothing.");
-            }
-
-            List<string> names = new(processes.GetArrayLength());
-            foreach (JsonElement process in processes.EnumerateArray())
-            {
-                if (process.ValueKind != JsonValueKind.String)
-                {
-                    throw new InvalidDataException("Every CapturedProcesses entry must be a nonempty executable name.");
-                }
-
-                names.Add(process.GetString()!);
-            }
-
-            settings.CapturedProcesses = names;
-        }
-
-        if (root.TryGetProperty(nameof(ToolbarSettings.HideDelayMilliseconds), out JsonElement delay))
-        {
-            if (delay.ValueKind != JsonValueKind.Number || !delay.TryGetInt32(out int milliseconds))
-            {
+            if (!int.TryParse(delay, NumberStyles.None, CultureInfo.InvariantCulture, out int milliseconds))
                 throw new InvalidDataException("HideDelayMilliseconds must be a whole number from 200 to 5000.");
-            }
-
             settings.HideDelayMilliseconds = milliseconds;
         }
-
-        if (root.TryGetProperty(nameof(ToolbarSettings.AlwaysMakeRemoteDesktopSessionFullscreen), out JsonElement fullscreen))
+        if (toolbar.TryGetValue("MaximizeOnActivate", out string? maximize))
         {
-            if (fullscreen.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-            {
-                throw new InvalidDataException("AlwaysMakeRemoteDesktopSessionFullscreen must be true or false.");
-            }
-
-            settings.AlwaysMakeRemoteDesktopSessionFullscreen = fullscreen.GetBoolean();
+            if (!bool.TryParse(maximize, out bool enabled))
+                throw new InvalidDataException("MaximizeOnActivate must be true or false.");
+            settings.AlwaysMakeRemoteDesktopSessionFullscreen = enabled;
         }
-
+        if (processes is not null)
+        {
+            settings.CapturedProcesses.Clear();
+            settings.CapturedProcesses.AddRange(processes.Values);
+        }
         return NormalizeSettings(settings);
+    }
+
+    private static string WriteSettings(ToolbarSettings settings)
+    {
+        StringBuilder text = new();
+        text.AppendLine("[Toolbar]")
+            .Append("Edge=").AppendLine(settings.Edge.ToString())
+            .Append("MonitorDeviceName=").AppendLine(settings.MonitorDeviceName)
+            .Append("HideDelayMilliseconds=").AppendLine(settings.HideDelayMilliseconds.ToString(CultureInfo.InvariantCulture))
+            .Append("MaximizeOnActivate=").AppendLine(settings.AlwaysMakeRemoteDesktopSessionFullscreen ? "true" : "false")
+            .AppendLine()
+            .AppendLine("[CapturedProcesses]");
+        for (int index = 0; index < settings.CapturedProcesses.Count; index++)
+        {
+            text.Append(index.ToString(CultureInfo.InvariantCulture)).Append('=')
+                .AppendLine(settings.CapturedProcesses[index]);
+        }
+        return text.ToString();
     }
 
     private static ToolbarSettings NormalizeSettings(ToolbarSettings settings)
@@ -255,6 +247,10 @@ internal static class SettingsStore
         {
             throw new InvalidDataException("MonitorDeviceName cannot be null. Use an empty string for Automatic.");
         }
+        if (settings.MonitorDeviceName.AsSpan().IndexOfAny('\r', '\n', '\0') >= 0)
+        {
+            throw new InvalidDataException("MonitorDeviceName must be a single line without null characters.");
+        }
 
         if (settings.HideDelayMilliseconds is < 200 or > 5000)
         {
@@ -263,7 +259,7 @@ internal static class SettingsStore
 
         if (settings.CapturedProcesses is null)
         {
-            throw new InvalidDataException("CapturedProcesses cannot be null. Use an empty array to capture nothing.");
+            throw new InvalidDataException("CapturedProcesses cannot be null. Use an empty list to capture nothing.");
         }
 
         List<string> names = new(settings.CapturedProcesses.Count);

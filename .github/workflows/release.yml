@@ -107,13 +107,13 @@ jobs:
 
           ## Changed
 
-          - Both `mstsc.exe` and `msrdc.exe` are now selected by default and remain listed in Settings even when not running.
-          - Maximize-on-activate is now enabled by default.
+          - Toolbar settings now use UTF-8 `settings.ini` beside `EdgeSwitch.exe`, independent of the launch working directory. Move the INI with the executable to keep your preferences.
+          - The executable's folder must be writable. Save errors are reported without a user-profile fallback; Windows startup registration remains per-user in the registry.
 
-          These defaults apply to new settings and omitted fields. Existing saved capture lists (including an empty list) and an explicit maximize-off setting remain unchanged.
+          The former user-profile `settings.json` is left untouched but is no longer read or imported. Reapply previous preferences in Settings and choose Save to create the INI. Missing INI files use defaults without creating a file.
 
           The release workflow builds and runs WPF/native-window smoke checks.
-          Local Settings-window checks verified both defaults and preservation of saved choices.
+          Local checks verified INI roundtrips, failed-save rollback, the actual Settings Save/reload path, and an executable launched from a different working directory.
           Connected Remote Desktop session transitions and physical mixed-DPI display setups have not been verified.
           '@ | Set-Content -LiteralPath artifacts/release/notes.md -Encoding utf8
           gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/SHA256SUMS.txt `
