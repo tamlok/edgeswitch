@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     }
 
     private readonly WindowCatalog catalog = new();
+    private readonly PluginHost pluginHost;
     private readonly ObservableCollection<WindowCard> cards = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private ToolbarSettings settings;
@@ -53,7 +54,13 @@ public partial class MainWindow : Window
     {
         this.settings = settings;
         InitializeComponent();
+        pluginHost = new PluginHost(Dispatcher, () =>
+        {
+            layoutDirty = true;
+            UpdateEntryVisibility();
+        });
         WindowItems.ItemsSource = cards;
+        PluginItems.ItemsSource = pluginHost.Cards;
         SourceInitialized += (_, _) =>
         {
             handle = new WindowInteropHelper(this).Handle;
@@ -67,7 +74,11 @@ public partial class MainWindow : Window
             e.Cancel = true;
             Conceal();
         };
-        Closed += (_, _) => timer.Stop();
+        Closed += (_, _) =>
+        {
+            timer.Stop();
+            pluginHost.Dispose();
+        };
     }
 
     internal void Start()
@@ -75,6 +86,7 @@ public partial class MainWindow : Window
         // Initialize WPF's visual tree once. Subsequent hover reveals use only native
         // nonactivating show/position calls; the HWND remains activatable by a click.
         new WindowInteropHelper(this).EnsureHandle();
+        pluginHost.Reload(settings);
         RefreshMonitors();
         RefreshWindows();
         Show();
@@ -110,6 +122,7 @@ public partial class MainWindow : Window
             if (dialog.ShowDialog() == true && dialog.SavedSettings is not null)
             {
                 settings = dialog.SavedSettings;
+                pluginHost.Reload(settings);
                 currentMonitor = null;
                 RefreshMonitors();
                 RefreshWindows();
@@ -394,14 +407,20 @@ public partial class MainWindow : Window
             }
         }
         layoutDirty |= changed;
-        EntrySeparator.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        WindowScroller.Visibility = windows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateEntryVisibility();
         AppButton.ToolTip = windows.Count > 0
             ? "Show host desktop (right-click for Settings)"
             : "Show host desktop (right-click for Settings)\nNo matching windows.";
         bool missingMonitor = !string.IsNullOrEmpty(settings.MonitorDeviceName) && !monitors.Any(m => m.DeviceName == settings.MonitorDeviceName);
         if (Environment.TickCount64 >= statusMessageUntil)
             SetStatus(missingMonitor ? "Saved display disconnected; using the primary display." : "");
+    }
+
+    private void UpdateEntryVisibility()
+    {
+        bool anyEntries = cards.Count > 0 || pluginHost.Cards.Count > 0;
+        EntrySeparator.Visibility = anyEntries ? Visibility.Visible : Visibility.Collapsed;
+        WindowScroller.Visibility = anyEntries ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SetStatus(string message)

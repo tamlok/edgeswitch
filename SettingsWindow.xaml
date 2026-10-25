@@ -246,6 +246,55 @@
                 </CheckBox>
                 <TextBlock Text="On by default. Maximizes the session when you click its entry. The remote client controls whether maximizing enters fullscreen."
                            Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,8" />
+                <TextBlock Text="Plugins" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
+                <TextBlock Text="Off by default. Enable only plugins you trust: scripts and programs run with your Windows permissions, not in a sandbox. Opening settings reads metadata only; plugins run after you enable them and choose Save."
+                           Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,8" />
+                <TextBlock Text="Plugin options are stored in settings.ini. Never enter passwords, tokens, or other secrets here; authenticate with the plugin's external sign-in tool."
+                           Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8" />
+                <TextBlock x:Name="NoPluginsMessage" Text="No plugins are installed."
+                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                <ItemsControl x:Name="PluginList" AutomationProperties.Name="Toolbar plugins">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <CheckBox IsChecked="{Binding Configuration.Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              AutomationProperties.Name="{Binding Name}">
+                                        <CheckBox.Style>
+                                            <Style TargetType="CheckBox" BasedOn="{StaticResource ProcessCheckBoxStyle}">
+                                                <Setter Property="IsEnabled" Value="{Binding CanEnable}" />
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter Property="IsEnabled" Value="True" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </CheckBox.Style>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    </CheckBox>
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="10,0,10,4"
+                                               Foreground="{DynamicResource MutedBrush}" />
+                                    <TextBlock Text="{Binding Availability}" TextWrapping="Wrap" FontSize="12" Margin="10,0,10,8"
+                                               Foreground="{DynamicResource MutedBrush}" />
+                                    <ItemsControl ItemsSource="{Binding Options}" Margin="10,0,10,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,8">
+                                                    <Label Content="{Binding Label}" Target="{Binding ElementName=PluginOptionInput}"
+                                                           Foreground="{DynamicResource TextBrush}" Padding="0,0,0,5" />
+                                                    <TextBox x:Name="PluginOptionInput" AutomationProperties.Name="{Binding Label}"
+                                                             Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             VerticalContentAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <TextBlock Text="Startup" FontSize="15" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <CheckBox x:Name="StartWithWindowsCheckBox"
                           Content="Start EdgeSwitch when I sign _in"

@@ -43,6 +43,27 @@ internal sealed class ToolbarSettings
 
     public bool AlwaysMakeRemoteDesktopSessionFullscreen { get; set; } = true;
 
+    public Dictionary<string, PluginConfiguration> Plugins { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public ToolbarSettings Clone()
+    {
+        Dictionary<string, PluginConfiguration> plugins = new(Plugins.Count, StringComparer.OrdinalIgnoreCase);
+        foreach ((string id, PluginConfiguration configuration) in Plugins)
+        {
+            plugins.Add(id, configuration.Clone());
+        }
+
+        return new ToolbarSettings
+        {
+            Edge = Edge,
+            MonitorDeviceName = MonitorDeviceName,
+            CapturedProcesses = new List<string>(CapturedProcesses),
+            HideDelayMilliseconds = HideDelayMilliseconds,
+            AlwaysMakeRemoteDesktopSessionFullscreen = AlwaysMakeRemoteDesktopSessionFullscreen,
+            Plugins = plugins
+        };
+    }
+
     internal static string NormalizeProcessName(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

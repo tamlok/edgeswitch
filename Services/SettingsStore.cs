@@ -45,7 +45,7 @@ internal static class SettingsStore
         return key?.GetValue(StartupValueName) is not null;
     }
 
-    public static void Save(ToolbarSettings settings, bool startWithWindows)
+    public static ToolbarSettings Save(ToolbarSettings settings, bool startWithWindows)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ToolbarSettings normalized = NormalizeSettings(settings);
@@ -115,6 +115,7 @@ internal static class SettingsStore
                 // Cleanup must not mask the original persistence error.
             }
         }
+        return normalized;
     }
 
     private static string GetStartupCommand()
@@ -146,6 +147,9 @@ internal static class SettingsStore
     {
         Dictionary<string, string> toolbar = new(StringComparer.OrdinalIgnoreCase);
         SortedDictionary<int, string>? processes = null;
+        Dictionary<string, PluginConfiguration> plugins = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> enabledKeys = new(StringComparer.OrdinalIgnoreCase);
+        PluginConfiguration? sectionPlugin = null;
         string section = "";
         using StringReader reader = new(text);
         int lineNumber = 0;
@@ -160,8 +164,20 @@ internal static class SettingsStore
                 if (line[^1] != ']' || line[1..^1].Trim().IsEmpty)
                     throw new InvalidDataException($"Invalid INI section on line {lineNumber}.");
                 section = line[1..^1].Trim().ToString();
+                sectionPlugin = null;
                 if (section.Equals("CapturedProcesses", StringComparison.OrdinalIgnoreCase))
                     processes ??= new SortedDictionary<int, string>();
+                else if (section.StartsWith("Plugin.", StringComparison.OrdinalIgnoreCase))
+                {
+                    string id = section[7..];
+                    if (!PluginConfiguration.IsIdentifier(id))
+                        throw new InvalidDataException($"Invalid plugin identifier on line {lineNumber}.");
+                    if (!plugins.TryGetValue(id, out sectionPlugin))
+                    {
+                        sectionPlugin = new PluginConfiguration();
+                        plugins.Add(id, sectionPlugin);
+                    }
+                }
                 continue;
             }
 
@@ -169,7 +185,9 @@ internal static class SettingsStore
             if (separator <= 0)
                 throw new InvalidDataException($"Invalid INI entry on line {lineNumber}; expected key=value.");
             bool isToolbar = section.Equals("Toolbar", StringComparison.OrdinalIgnoreCase);
-            if (!isToolbar && !section.Equals("CapturedProcesses", StringComparison.OrdinalIgnoreCase))
+            bool isPlugins = section.Equals("Plugins", StringComparison.OrdinalIgnoreCase);
+            if (!isToolbar && !isPlugins && sectionPlugin is null
+                && !section.Equals("CapturedProcesses", StringComparison.OrdinalIgnoreCase))
                 continue;
             string key = line[..separator].Trim().ToString();
             string value = line[(separator + 1)..].Trim().ToString();
@@ -178,6 +196,24 @@ internal static class SettingsStore
                 if (!toolbar.TryAdd(key, value))
                     throw new InvalidDataException($"Duplicate Toolbar key on line {lineNumber}: {key}.");
             }
+            else if (isPlugins)
+            {
+                if (!PluginConfiguration.IsIdentifier(key) || !enabledKeys.Add(key))
+                    throw new InvalidDataException($"Plugins needs unique valid identifiers (line {lineNumber}).");
+                if (!bool.TryParse(value, out bool enabled))
+                    throw new InvalidDataException($"Plugin enabled values must be true or false (line {lineNumber}).");
+                if (!plugins.TryGetValue(key, out PluginConfiguration? configuration))
+                {
+                    configuration = new PluginConfiguration();
+                    plugins.Add(key, configuration);
+                }
+                configuration.Enabled = enabled;
+            }
+            else if (sectionPlugin is not null)
+            {
+                if (!PluginConfiguration.IsIdentifier(key) || !sectionPlugin.Options.TryAdd(key, value))
+                    throw new InvalidDataException($"Plugin options need unique valid keys (line {lineNumber}).");
+            }
             else if (!int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out int index)
                 || !processes!.TryAdd(index, value))
             {
@@ -185,7 +221,7 @@ internal static class SettingsStore
             }
         }
 
-        ToolbarSettings settings = new();
+        ToolbarSettings settings = new() { Plugins = plugins };
         if (toolbar.TryGetValue("Edge", out string? edge))
         {
             if (!Enum.TryParse(edge, ignoreCase: true, out ToolbarEdge parsed)
@@ -233,6 +269,20 @@ internal static class SettingsStore
             text.Append(index.ToString(CultureInfo.InvariantCulture)).Append('=')
                 .AppendLine(settings.CapturedProcesses[index]);
         }
+        if (settings.Plugins.Count != 0)
+        {
+            text.AppendLine().AppendLine("[Plugins]");
+            foreach ((string id, PluginConfiguration configuration) in settings.Plugins)
+                text.Append(id).Append('=').AppendLine(configuration.Enabled ? "true" : "false");
+            foreach ((string id, PluginConfiguration configuration) in settings.Plugins)
+            {
+                if (configuration.Options.Count == 0)
+                    continue;
+                text.AppendLine().Append("[Plugin.").Append(id).AppendLine("]");
+                foreach ((string key, string value) in configuration.Options)
+                    text.Append(key).Append('=').AppendLine(value);
+            }
+        }
         return text.ToString();
     }
 
@@ -278,13 +328,35 @@ internal static class SettingsStore
             }
         }
 
+        if (settings.Plugins is null)
+            throw new InvalidDataException("Plugins cannot be null. Use an empty dictionary to disable all plugins.");
+        Dictionary<string, PluginConfiguration> plugins = new(settings.Plugins.Count, StringComparer.OrdinalIgnoreCase);
+        foreach ((string id, PluginConfiguration configuration) in settings.Plugins)
+        {
+            if (!PluginConfiguration.IsIdentifier(id) || configuration is null || configuration.Options is null)
+                throw new InvalidDataException("Plugins must have valid identifiers and non-null configurations and options.");
+            PluginConfiguration normalized = new() { Enabled = configuration.Enabled };
+            if (!plugins.TryAdd(id, normalized))
+                throw new InvalidDataException("Plugin identifiers must be unique, ignoring case.");
+            foreach ((string key, string value) in configuration.Options)
+            {
+                if (!PluginConfiguration.IsIdentifier(key))
+                    throw new InvalidDataException("Plugin option keys must be valid identifiers.");
+                if (value is null || value.AsSpan().IndexOfAny("\r\n\0\u0085\u2028\u2029".AsSpan()) >= 0)
+                    throw new InvalidDataException("Plugin option values must be non-null single lines without null characters.");
+                if (!normalized.Options.TryAdd(key, value.Trim()))
+                    throw new InvalidDataException("Plugin option keys must be unique, ignoring case.");
+            }
+        }
+
         return new ToolbarSettings
         {
             Edge = settings.Edge,
             MonitorDeviceName = settings.MonitorDeviceName.Trim(),
             CapturedProcesses = names,
             HideDelayMilliseconds = settings.HideDelayMilliseconds,
-            AlwaysMakeRemoteDesktopSessionFullscreen = settings.AlwaysMakeRemoteDesktopSessionFullscreen
+            AlwaysMakeRemoteDesktopSessionFullscreen = settings.AlwaysMakeRemoteDesktopSessionFullscreen,
+            Plugins = plugins
         };
     }
 }

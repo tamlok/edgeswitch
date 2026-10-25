@@ -25,14 +25,7 @@ public partial class SettingsWindow : Window
     internal SettingsWindow(ToolbarSettings current)
     {
         ArgumentNullException.ThrowIfNull(current);
-        workingCopy = new ToolbarSettings
-        {
-            Edge = current.Edge,
-            MonitorDeviceName = current.MonitorDeviceName,
-            CapturedProcesses = new List<string>(current.CapturedProcesses),
-            HideDelayMilliseconds = current.HideDelayMilliseconds,
-            AlwaysMakeRemoteDesktopSessionFullscreen = current.AlwaysMakeRemoteDesktopSessionFullscreen
-        };
+        workingCopy = current.Clone();
 
         InitializeComponent();
         Rect workArea = SystemParameters.WorkArea;
@@ -65,6 +58,7 @@ public partial class SettingsWindow : Window
         AlwaysMakeRemoteDesktopSessionFullscreenCheckBox.IsChecked = workingCopy.AlwaysMakeRemoteDesktopSessionFullscreen;
         PopulateProcesses();
         PopulateMonitors();
+        PopulatePlugins();
         try
         {
             StartWithWindowsCheckBox.IsChecked = SettingsStore.IsStartupEnabled();
@@ -76,6 +70,47 @@ public partial class SettingsWindow : Window
             SaveButton.IsEnabled = false;
             ShowError($"Could not read the Windows startup preference. Settings cannot be saved until access is restored. {exception.Message}");
         }
+    }
+
+    private void PopulatePlugins()
+    {
+        List<PluginChoice> choices = new();
+        HashSet<string> discovered = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PluginDefinition definition in PluginCatalog.Discover())
+        {
+            discovered.Add(definition.Id);
+            if (!workingCopy.Plugins.TryGetValue(definition.Id, out PluginConfiguration? configuration))
+            {
+                configuration = new PluginConfiguration();
+                if (PluginConfiguration.IsIdentifier(definition.Id))
+                    workingCopy.Plugins.Add(definition.Id, configuration);
+            }
+
+            bool available = definition.Error is null && definition.Manifest is not null
+                && PluginConfiguration.IsIdentifier(definition.Id);
+            List<PluginOptionChoice> options = new();
+            if (available)
+            {
+                foreach (PluginSettingDefinition setting in definition.Manifest!.Settings)
+                {
+                    configuration.Options.TryAdd(setting.Key, setting.DefaultValue);
+                    options.Add(new PluginOptionChoice(configuration, setting.Key, setting.Label));
+                }
+            }
+            choices.Add(new PluginChoice(definition.Name, definition.Manifest?.Description ?? "",
+                available ? "Available · runs only after enabling and saving."
+                    : $"Unavailable · {definition.Error ?? "Invalid plugin metadata."} Saved preferences are preserved.",
+                available, configuration, options));
+        }
+        foreach ((string id, PluginConfiguration configuration) in workingCopy.Plugins)
+        {
+            if (!discovered.Contains(id))
+                choices.Add(new PluginChoice(id, "", "Not installed · saved preferences are preserved; this plugin cannot run.",
+                    false, configuration, new List<PluginOptionChoice>()));
+        }
+        choices.Sort(static (left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name));
+        PluginList.ItemsSource = choices;
+        NoPluginsMessage.Visibility = choices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void PopulateProcesses()
@@ -305,7 +340,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            SettingsStore.Save(workingCopy, StartWithWindowsCheckBox.IsChecked == true);
+            SavedSettings = SettingsStore.Save(workingCopy, StartWithWindowsCheckBox.IsChecked == true);
         }
         catch (Exception exception) when (exception is IOException
             or UnauthorizedAccessException or SecurityException or ArgumentException
@@ -316,7 +351,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        SavedSettings = workingCopy;
         DialogResult = true;
     }
 
@@ -380,6 +414,30 @@ public partial class SettingsWindow : Window
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    internal sealed record PluginChoice(string Name, string Description, string Availability,
+        bool CanEnable, PluginConfiguration Configuration, List<PluginOptionChoice> Options);
+
+    internal sealed class PluginOptionChoice
+    {
+        private readonly PluginConfiguration configuration;
+        private readonly string key;
+
+        internal PluginOptionChoice(PluginConfiguration configuration, string key, string label)
+        {
+            this.configuration = configuration;
+            this.key = key;
+            Label = label;
+        }
+
+        public string Label { get; }
+
+        public string Value
+        {
+            get => configuration.Options[key];
+            set => configuration.Options[key] = value;
+        }
     }
 
     internal sealed record EdgeChoice(ToolbarEdge Edge, string DisplayName);

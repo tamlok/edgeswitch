@@ -43,6 +43,13 @@ jobs:
         run: dotnet build EdgeSwitch.csproj -c Release --no-restore "-p:Version=$env:RELEASE_VERSION" -p:ContinuousIntegrationBuild=true
       - name: Run toolbar smoke checks
         run: pwsh -NoProfile -STA -File tests/ToolbarCaptureSmoke.ps1
+      - name: Run plugin and settings smoke checks
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          pwsh -NoProfile -File tests/SettingsStoreSmoke.ps1
+          pwsh.exe -NoProfile -NonInteractive -File tests/CopilotPluginSmoke.ps1
+          pwsh -NoProfile -STA -File tests/PluginSmoke.ps1
       - name: Publish framework-dependent executable
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
@@ -54,13 +61,21 @@ jobs:
             "-p:Version=$env:RELEASE_VERSION" -p:ContinuousIntegrationBuild=true -o artifacts/publish
           New-Item -ItemType Directory -Path artifacts/release -Force | Out-Null
           Copy-Item -LiteralPath artifacts/publish/EdgeSwitch.exe -Destination artifacts/release/EdgeSwitch.exe
-          $hash = (Get-FileHash -LiteralPath artifacts/release/EdgeSwitch.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          [IO.File]::WriteAllText('artifacts/release/SHA256SUMS.txt', "$hash *EdgeSwitch.exe`n", [Text.UTF8Encoding]::new($false))
+          New-Item -ItemType Directory -Path artifacts/portable -Force | Out-Null
+          Copy-Item -LiteralPath artifacts/publish/EdgeSwitch.exe -Destination artifacts/portable/EdgeSwitch.exe
+          Copy-Item -LiteralPath artifacts/publish/plugins -Destination artifacts/portable/plugins -Recurse
+          Compress-Archive -Path artifacts/portable/* -DestinationPath artifacts/release/EdgeSwitch-portable.zip -Force
+          $checksums = foreach ($name in @('EdgeSwitch.exe', 'EdgeSwitch-portable.zip')) {
+            $hash = (Get-FileHash -LiteralPath "artifacts/release/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$name"
+          }
+          [IO.File]::WriteAllText('artifacts/release/SHA256SUMS.txt', (($checksums -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-x64-release
           path: |
             artifacts/release/EdgeSwitch.exe
+            artifacts/release/EdgeSwitch-portable.zip
             artifacts/release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -84,9 +99,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $hash = (Get-FileHash -LiteralPath artifacts/release/EdgeSwitch.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksums = foreach ($name in @('EdgeSwitch.exe', 'EdgeSwitch-portable.zip')) {
+            $hash = (Get-FileHash -LiteralPath "artifacts/release/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$name"
+          }
           $manifest = (Get-Content -LiteralPath artifacts/release/SHA256SUMS.txt -Raw).Trim()
-          if ($manifest -ne "$hash *EdgeSwitch.exe") { throw 'Release checksum does not match the executable.' }
+          if ($manifest -cne ($checksums -join "`n")) { throw 'Release checksums do not match the assets.' }
           @'
           ## Windows x64 portable release
 
@@ -95,7 +113,9 @@ jobs:
           - Requires **Windows 10/11 x64** and the **[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)**.
           - The .NET runtime is **not bundled**. No application installation is required.
           - The executable is unsigned; Windows may display a reputation warning.
-          - **SHA256SUMS.txt** contains the executable's SHA-256 checksum.
+          - **EdgeSwitch-portable.zip** includes the executable and the optional Copilot toolbar plugin. Extract the entire ZIP into a writable folder.
+          - The Copilot plugin requires PowerShell 7 (MSI installation with `pwsh.exe` on `PATH`) and GitHub CLI (`gh`). It is disabled until configured and enabled in Settings; execution policy is not bypassed.
+          - **SHA256SUMS.txt** contains SHA-256 checksums for both downloads.
 
           ## Features
 
@@ -107,6 +127,8 @@ jobs:
 
           ## Changed
 
+          - Opt-in, language-independent toolbar plugins run as separate processes with bounded polling and cancellation. Only enable scripts you trust; plugins run with your Windows account permissions.
+          - The bundled Copilot plugin displays cycle AI-credit consumption, allowance, reset date and selected account. Personal and managed accounts use their own `gh` authentication; GitHub's undocumented quota endpoint may change or be restricted by enterprise policy.
           - Toolbar settings now use UTF-8 `settings.ini` beside `EdgeSwitch.exe`, independent of the launch working directory. Move the INI with the executable to keep your preferences.
           - The executable's folder must be writable. Save errors are reported without a user-profile fallback; Windows startup registration remains per-user in the registry.
 
@@ -116,6 +138,6 @@ jobs:
           Local checks verified INI roundtrips, failed-save rollback, the actual Settings Save/reload path, and an executable launched from a different working directory.
           Connected Remote Desktop session transitions and physical mixed-DPI display setups have not been verified.
           '@ | Set-Content -LiteralPath artifacts/release/notes.md -Encoding utf8
-          gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/SHA256SUMS.txt `
+          gh release create $env:RELEASE_TAG artifacts/release/EdgeSwitch.exe artifacts/release/EdgeSwitch-portable.zip artifacts/release/SHA256SUMS.txt `
             --verify-tag --draft --title "EdgeSwitch $env:RELEASE_TAG" --notes-file artifacts/release/notes.md
           gh release edit $env:RELEASE_TAG --draft=false --latest

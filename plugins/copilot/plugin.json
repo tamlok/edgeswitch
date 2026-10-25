@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "name": "Copilot",
+  "description": "Cycle AI-credit usage for the selected GitHub account. Requires PowerShell 7 and GitHub CLI (gh).",
+  "executable": "pwsh.exe",
+  "arguments": ["-NoProfile", "-NonInteractive", "-File", "copilot.ps1"],
+  "refreshSeconds": 300,
+  "timeoutSeconds": 30,
+  "settings": [
+    { "key": "GitHubHost", "label": "GitHub host", "defaultValue": "github.com" },
+    { "key": "GitHubUser", "label": "GitHub username", "defaultValue": "" }
+  ]
+}

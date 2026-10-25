@@ -26,6 +26,30 @@
                 Background="{StaticResource BorderBrush}" />
         <ScrollViewer x:Name="WindowScroller" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+          <StackPanel Orientation="{Binding CardOrientation, RelativeSource={RelativeSource AncestorType=Window}}">
+            <ItemsControl x:Name="PluginItems" AutomationProperties.Name="Toolbar plugins">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="{Binding CardOrientation, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Margin="2" Padding="7,3" Height="40" MinWidth="54" MaxWidth="160"
+                          HorizontalAlignment="Left" BorderThickness="1" CornerRadius="5"
+                          BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource PanelBrush}"
+                          ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding Name}"
+                          AutomationProperties.HelpText="{Binding ToolTip}">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{StaticResource MutedBrush}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Text}" FontSize="13" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           <ItemsControl x:Name="WindowItems" AutomationProperties.Name="Captured windows">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -63,6 +87,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          </StackPanel>
         </ScrollViewer>
       </DockPanel>
       <TextBlock x:Name="StatusText" Grid.Row="1" TextWrapping="Wrap" Visibility="Collapsed" MaxWidth="240"

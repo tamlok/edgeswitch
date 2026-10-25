@@ -14,5 +14,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/EdgeSwitch.ico" />
+    <Content Include="plugins/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 </Project>
